@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/",
+      "has": [
+        { "type": "header", "key": "user-agent", "value": ".*(Android|iPhone|iPod|Opera Mini|BlackBerry|Mobile).*" }
+      ],
+      "destination": "/loja.html"
+    },
+    { "source": "/", "destination": "/desktop.html" }
+  ]
+}

@@ -1,0 +1,7 @@
+.vercel
+.env*
+
+.vercel
+.DS_Store
+.env*
+vercel-env*

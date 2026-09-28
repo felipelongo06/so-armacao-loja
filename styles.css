@@ -364,6 +364,16 @@ body.lupa-aberta { overflow: hidden; }
 .pag-opcao strong { display: block; }
 .pag-opcao span { font-size: 13px; color: var(--texto-suave); }
 .pag-opcao .recomendado { display: inline-block; background: var(--laranja); color: var(--verde-escuro); font-family: var(--display); font-size: 11px; letter-spacing: .8px; padding: 2px 6px; border-radius: 2px; margin-left: 6px; vertical-align: middle; }
+/* ---------- Frete: Econômico / Expresso ---------- */
+.frete-opcoes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
+.frete-opcao { display: grid; gap: 2px; text-align: left; border: 2px solid var(--creme-2); border-radius: var(--raio); padding: 10px 12px; background: var(--branco); cursor: pointer; font: inherit; color: inherit; transition: border-color .12s, background .12s; }
+.frete-opcao:hover { border-color: var(--verde-escuro); }
+.frete-opcao.ativo { border-color: var(--verde-escuro); background: var(--creme); }
+.frete-opcao .frete-tit { font-family: var(--display); font-size: 15px; }
+.frete-opcao .frete-prazo { font-size: 12px; color: var(--texto-suave); }
+.frete-opcao .frete-preco { font-weight: 700; margin-top: 2px; }
+@media (max-width: 360px) { .frete-opcoes { grid-template-columns: 1fr; } }
+
 .mini-itens { display: grid; gap: 8px; }
 .mini-item { display: grid; grid-template-columns: 44px 1fr auto; gap: 8px; align-items: center; font-size: 13px; }
 .mini-item img { width: 44px; height: 44px; object-fit: contain; }

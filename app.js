@@ -122,6 +122,7 @@
     precoMinimo: null,
     carrinho: ler('sa_cart_v2', []),
     cep: ler('sa_cep', ''),
+    freteOpcao: ler('sa_frete', 'ECONOMICO'),  // 'ECONOMICO' | 'EXPRESSO'
     cotacao: null,         // último resumo do /api/cotar
     cotacaoErro: '',
     form: ler('sa_checkout', {}, sessionStorage),
@@ -252,7 +253,7 @@
   function itensPedido() { return estado.carrinho.map(function (i) { return { sku: i.sku, qty: i.qty }; }); }
 
   function cotar(cep) {
-    var body = { itens: itensPedido() };
+    var body = { itens: itensPedido(), frete: estado.freteOpcao };
     var cepLimpo = digitos(cep);
     if (cepLimpo.length === 8) body.cep = cepLimpo;
     return fetch(CONFIG.api + '/api/cotar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -263,8 +264,25 @@
         estado.cotacao = res.dados;
         estado.cotacaoErro = '';
         if (res.dados.regras) estado.regras = Object.assign(estado.regras, res.dados.regras);
+        // A opção pedida pode não existir pro CEP (ex.: Expresso onde não há
+        // entrega rápida): o servidor volta pra Econômico e a UI acompanha.
+        if (res.dados.resumo && res.dados.resumo.frete_opcao) estado.freteOpcao = res.dados.resumo.frete_opcao;
         return res.dados;
       });
+  }
+
+  // Cards "Econômico / Expresso" — só aparecem quando há 2 opções pro CEP.
+  // A transportadora não é exibida (regra do Felipe): só título, prazo e preço.
+  function seletorFreteHtml(r) {
+    if (!r || !r.frete_opcoes || r.frete_opcoes.length < 2) return '';
+    return '<div class="frete-opcoes" role="group" aria-label="Forma de entrega">' + r.frete_opcoes.map(function (o) {
+      var ativo = o.codigo === r.frete_opcao;
+      return '<button type="button" class="frete-opcao' + (ativo ? ' ativo' : '') + '" data-action="frete" data-frete="' + h(o.codigo) + '" aria-pressed="' + (ativo ? 'true' : 'false') + '">' +
+        '<span class="frete-tit">' + h(o.titulo) + '</span>' +
+        '<span class="frete-prazo">' + h(o.prazo) + '</span>' +
+        '<span class="frete-preco">' + (o.preco === 0 ? 'grátis' : h(fmt(o.preco))) + '</span>' +
+        '</button>';
+    }).join('') + '</div>';
   }
 
   // ---------------------------------------------------------------------------
@@ -788,7 +806,7 @@
     if (!r) return '';
     return '<div class="resumo-linha"><span>Subtotal (' + r.unidades + ' ' + (r.unidades === 1 ? 'armação' : 'armações') + ')</span><span>' + h(fmt(r.subtotal)) + '</span></div>' +
       (r.desconto > 0 ? '<div class="resumo-linha desconto"><span>2ª armação com -' + (r.desconto_pct || estado.regras.leve2_pct) + '%' + (r.unidades_com_desconto > 1 ? ' (×' + r.unidades_com_desconto + ')' : '') + '</span><span>-' + h(fmt(r.desconto)) + '</span></div>' : '') +
-      '<div class="resumo-linha"><span>Frete' + (r.frete_prazo ? ' <small>(' + h(r.frete_prazo) + ')</small>' : '') + '</span><span>' + (r.frete == null ? 'informe o CEP' : (r.frete === 0 ? 'grátis' : h(fmt(r.frete)))) + '</span></div>' +
+      '<div class="resumo-linha"><span>Frete' + (r.frete_titulo ? ' · ' + h(r.frete_titulo) : '') + (r.frete_prazo ? ' <small>(' + h(r.frete_prazo) + ')</small>' : '') + '</span><span>' + (r.frete == null ? 'informe o CEP' : (r.frete === 0 ? 'grátis' : h(fmt(r.frete)))) + '</span></div>' +
       '<div class="resumo-linha total"><span>Total</span><span class="num">' + h(fmt(r.total)) + '</span></div>';
   }
 
@@ -816,6 +834,7 @@
         '<div class="painel"><h2 class="display">Resumo</h2>' +
           '<form class="cep-linha" data-action="cep"><div class="campo"><label for="cep">CEP pra calcular o frete</label><input id="cep" name="cep" inputmode="numeric" autocomplete="postal-code" placeholder="00000-000" value="' + h(estado.cep) + '" maxlength="9"></div><button class="btn btn-verde" type="submit" style="align-self:end">OK</button></form>' +
           (resumo && resumo.endereco ? '<p class="endereco-resolvido">' + h([resumo.endereco.logradouro, resumo.endereco.bairro, resumo.endereco.cidade ? resumo.endereco.cidade + '/' + resumo.endereco.uf : ''].filter(Boolean).join(', ')) + '</p>' : '') +
+          (carregando ? '' : seletorFreteHtml(resumo ? resumo.resumo : null)) +
           (carregando ? '<p class="endereco-resolvido"><span class="spinner"></span> Calculando…</p>' : resumoHtml(resumo ? Object.assign({}, resumo.resumo, { endereco: undefined }) : null)) +
           '<a class="btn btn-laranja btn-bloco" href="/checkout" data-link' + (erro ? ' aria-disabled="true" style="pointer-events:none;opacity:.55"' : '') + '>Fechar pedido →</a>' +
           '<p class="endereco-resolvido">Pix aprovado na hora · cartão em até 6x · nota fiscal · troca grátis em até 7 dias úteis</p>' +
@@ -894,7 +913,7 @@
             '<p class="ajuda" style="font-size:12px;color:var(--texto-suave)">Ao pagar, você concorda com os <a href="/termos" data-link>termos de uso</a> e a <a href="/privacidade" data-link>política de privacidade</a>.</p>' +
           '</div>' +
           '<div class="painel sticky"><h2 class="display">Seu pedido</h2>' +
-            (r ? '<div class="mini-itens">' + r.itens.map(function (i) { var local = estado.carrinho.find(function (c) { return c.sku === i.sku; }) || {}; return '<div class="mini-item">' + ((i.imagem || local.imagem) ? '<img src="' + h(foto(i.imagem || local.imagem)) + '" alt="">' : '<div></div>') + '<span>' + i.qty + 'x ' + h(i.nome) + '</span><strong>' + h(fmt(i.total)) + '</strong></div>'; }).join('') + '</div>' + resumoHtml(r) : '<p class="endereco-resolvido"><span class="spinner"></span> Calculando o pedido…</p>') +
+            (r ? '<div class="mini-itens">' + r.itens.map(function (i) { var local = estado.carrinho.find(function (c) { return c.sku === i.sku; }) || {}; return '<div class="mini-item">' + ((i.imagem || local.imagem) ? '<img src="' + h(foto(i.imagem || local.imagem)) + '" alt="">' : '<div></div>') + '<span>' + i.qty + 'x ' + h(i.nome) + '</span><strong>' + h(fmt(i.total)) + '</strong></div>'; }).join('') + '</div>' + seletorFreteHtml(r) + resumoHtml(r) : '<p class="endereco-resolvido"><span class="spinner"></span> Calculando o pedido…</p>') +
           '</div>' +
         '</form></div>';
       if (foco) {
@@ -937,6 +956,7 @@
         itens: itensPedido(),
         cliente: { nome: f.nome.trim(), cpf: f.cpf, email: f.email.trim(), telefone: f.telefone, cep: f.cep, numero: String(f.numero).trim(), complemento: f.complemento || '' },
         metodo: f.metodo, parcelas: f.metodo === 'CREDIT_CARD' ? (Number(f.parcelas) || 1) : 1,
+        frete: estado.freteOpcao,
         tracking: { ga_client_id: gaClientId(), fbp: cookie('_fbp'), fbc: cookie('_fbc'), source_url: location.href }
       };
       fetch(CONFIG.api + '/api/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -1125,6 +1145,16 @@
     }
     else if (acao === 'qtd') { alterarQtd(el.dataset.sku, Number(el.dataset.delta)); geracao++; viewCarrinho(); }
     else if (acao === 'remover') { removerDoCarrinho(el.dataset.sku); geracao++; viewCarrinho(); }
+    else if (acao === 'frete') {
+      // Troca Econômico/Expresso: guarda a escolha e recota a tela atual
+      // (o preço vem do servidor; nada de preço é decidido aqui).
+      if (el.dataset.frete === estado.freteOpcao) return;
+      estado.freteOpcao = el.dataset.frete;
+      gravar('sa_frete', estado.freteOpcao);
+      track('select_shipping_option', { shipping_tier: estado.freteOpcao });
+      geracao++;
+      if (/\/checkout\/?$/.test(location.pathname)) viewCheckout(); else viewCarrinho();
+    }
     else if (acao === 'copiar') {
       var inp = document.getElementById('copia');
       var feito = function () { toast('Código Pix copiado. Cole no app do seu banco.'); track('pix_copy', {}); };

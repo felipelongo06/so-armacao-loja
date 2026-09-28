@@ -132,6 +132,7 @@
   function limparTimers() {
     estado.timers.forEach(function (t) { clearInterval(t); clearTimeout(t); });
     estado.timers = [];
+    if (typeof lupaFechar === 'function') lupaFechar();
   }
 
   // ---------------------------------------------------------------------------
@@ -550,6 +551,7 @@
         }).join('') + '</div>' +
         '<button class="galeria-seta anterior" type="button" data-action="galeria" data-dir="-1" aria-label="Foto anterior">‹</button>' +
         '<button class="galeria-seta proxima" type="button" data-action="galeria" data-dir="1" aria-label="Próxima foto">›</button>' +
+        '<button class="galeria-lupa" type="button" data-action="lupa" aria-label="Ampliar foto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21M8 10.5h5M10.5 8v5"/></svg><span>Zoom</span></button>' +
       '</div>' +
       '<div class="galeria-thumbs" role="tablist">' + fotos.map(function (f, i) {
         return '<button type="button" class="' + (i === 0 ? 'ativo' : '') + '" data-action="foto" data-i="' + i + '" role="tab" aria-label="' + h(f.rotulo) + '"><img src="' + h(f.src) + '" alt="" loading="lazy"' + (f.opcional ? ' data-opcional="1"' : '') + '><span>' + h(f.rotulo) + '</span></button>';
@@ -589,6 +591,164 @@
     g.querySelectorAll('.galeria-slide').forEach(function (s, k) { s.setAttribute('data-i', k); });
     g.querySelectorAll('.galeria-thumbs button').forEach(function (b, k) { b.setAttribute('data-i', k); });
     galeriaMarcar(Math.min(galeriaIndice(), g.querySelectorAll('.galeria-slide').length - 1));
+  }
+
+  // ---------------------------------------------------------------------------
+  // Zoom nas fotos: no desktop, passar o mouse amplia dentro da própria foto (lupa);
+  // em qualquer tela, tocar/clicar abre em tela cheia com pinça, arrastar,
+  // duplo toque e roda do mouse. As fotos têm 1200px, então dá pra chegar a 4x.
+  // ---------------------------------------------------------------------------
+  var MOUSE_FINO = window.matchMedia && matchMedia('(hover: hover) and (pointer: fine)').matches;
+  var lupa = { aberta: false, fotos: [], i: 0, s: 1, tx: 0, ty: 0, ponteiros: {}, gesto: null, ultimoToque: 0, moveu: false };
+  var MAX_ZOOM = 4, ZOOM_TOQUE = 2.5;
+
+  function lupaEls() {
+    return { raiz: document.getElementById('lupa'), img: document.getElementById('lupa-img'), palco: document.getElementById('lupa-palco'), legenda: document.getElementById('lupa-legenda'), dica: document.getElementById('lupa-dica') };
+  }
+  function lupaFotosDaGaleria() {
+    var g = document.getElementById('galeria');
+    if (!g) return [];
+    return Array.prototype.map.call(g.querySelectorAll('.galeria-slide img'), function (im) { return { src: im.getAttribute('src'), rotulo: (im.getAttribute('alt') || '').split(' — ').pop() }; });
+  }
+  function lupaAbrir(i) {
+    var e = lupaEls();
+    if (!e.raiz) return;
+    lupa.fotos = lupaFotosDaGaleria();
+    if (!lupa.fotos.length) return;
+    lupa.aberta = true;
+    e.raiz.hidden = false;
+    document.body.classList.add('lupa-aberta');
+    e.dica.textContent = MOUSE_FINO ? 'Roda do mouse pra ampliar · arraste pra mover · Esc fecha' : 'Faça pinça pra ampliar · toque 2x pra dar zoom · arraste pra mover';
+    lupaMostrar(i || 0);
+    track('zoom_foto', { sku: lupa.fotos[lupa.i] && lupa.fotos[lupa.i].src });
+  }
+  function lupaFechar() {
+    var e = lupaEls();
+    if (!e.raiz || !lupa.aberta) return;
+    lupa.aberta = false; lupa.ponteiros = {}; lupa.gesto = null;
+    e.raiz.hidden = true;
+    document.body.classList.remove('lupa-aberta');
+  }
+  function lupaMostrar(i) {
+    var e = lupaEls(), n = lupa.fotos.length;
+    lupa.i = ((i % n) + n) % n;
+    lupa.s = 1; lupa.tx = 0; lupa.ty = 0;
+    e.img.src = lupa.fotos[lupa.i].src;
+    e.legenda.textContent = (lupa.fotos[lupa.i].rotulo || '') + (n > 1 ? ' · ' + (lupa.i + 1) + '/' + n : '');
+    e.raiz.classList.toggle('so-uma', n < 2);
+    lupaAplicar(false);
+  }
+  function lupaAplicar(animar) {
+    var e = lupaEls();
+    if (!e.img) return;
+    // Mantém a foto dentro da tela: a translação não passa da metade do que "sobra" ao ampliar.
+    var base = { w: e.img.offsetWidth, h: e.img.offsetHeight }; // tamanho de layout, sem o transform
+    var maxX = Math.max(0, (base.w * lupa.s - e.palco.clientWidth) / 2 + 40), maxY = Math.max(0, (base.h * lupa.s - e.palco.clientHeight) / 2 + 40);
+    lupa.tx = Math.max(-maxX, Math.min(maxX, lupa.tx)); lupa.ty = Math.max(-maxY, Math.min(maxY, lupa.ty));
+    e.img.style.transition = animar ? 'transform .18s ease-out' : 'none';
+    e.img.style.transform = 'translate(' + lupa.tx + 'px, ' + lupa.ty + 'px) scale(' + lupa.s + ')';
+    e.raiz.classList.toggle('ampliada', lupa.s > 1.01);
+  }
+  // Ponto (x,y) da tela relativo ao centro do palco — é onde o zoom "ancora".
+  function lupaRel(x, y) {
+    var r = lupaEls().palco.getBoundingClientRect();
+    return { x: x - (r.left + r.width / 2), y: y - (r.top + r.height / 2) };
+  }
+  function lupaZoomEm(s1, x, y, animar) {
+    var q = lupaRel(x, y), s0 = lupa.s;
+    s1 = Math.max(1, Math.min(MAX_ZOOM, s1));
+    // Mantém sob o dedo/cursor o mesmo ponto da foto: t1 = q - (q - t0) * s1/s0
+    lupa.tx = q.x - (q.x - lupa.tx) * (s1 / s0);
+    lupa.ty = q.y - (q.y - lupa.ty) * (s1 / s0);
+    lupa.s = s1;
+    if (s1 <= 1.001) { lupa.tx = 0; lupa.ty = 0; }
+    lupaAplicar(animar);
+  }
+  function lupaPointerDown(ev) {
+    if (!lupa.aberta || ev.target.closest('button')) return;
+    ev.preventDefault();
+    lupa.ponteiros[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
+    try { lupaEls().palco.setPointerCapture(ev.pointerId); } catch (e) { /* ignora */ }
+    var ids = Object.keys(lupa.ponteiros);
+    if (ids.length === 1) {
+      lupa.gesto = { tipo: 'arrasto', x0: ev.clientX, y0: ev.clientY, tx0: lupa.tx, ty0: lupa.ty, s0: lupa.s, t0: Date.now() };
+      lupa.moveu = false;
+    } else if (ids.length === 2) {
+      var a = lupa.ponteiros[ids[0]], b = lupa.ponteiros[ids[1]];
+      lupa.gesto = { tipo: 'pinca', d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, mid0: lupaRel((a.x + b.x) / 2, (a.y + b.y) / 2), s0: lupa.s, tx0: lupa.tx, ty0: lupa.ty };
+      lupa.moveu = true;
+    }
+  }
+  function lupaPointerMove(ev) {
+    if (!lupa.aberta || !lupa.ponteiros[ev.pointerId]) return;
+    ev.preventDefault();
+    lupa.ponteiros[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
+    var g = lupa.gesto, ids = Object.keys(lupa.ponteiros);
+    if (!g) return;
+    if (g.tipo === 'pinca' && ids.length >= 2) {
+      var a = lupa.ponteiros[ids[0]], b = lupa.ponteiros[ids[1]];
+      var d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+      var s1 = Math.max(1, Math.min(MAX_ZOOM, g.s0 * d / g.d0));
+      var mid = lupaRel((a.x + b.x) / 2, (a.y + b.y) / 2);
+      // Zoom em torno do ponto entre os dedos + arraste pelo movimento dele.
+      lupa.tx = mid.x - (g.mid0.x - g.tx0) * (s1 / g.s0);
+      lupa.ty = mid.y - (g.mid0.y - g.ty0) * (s1 / g.s0);
+      lupa.s = s1;
+      lupaAplicar(false);
+    } else if (g.tipo === 'arrasto') {
+      var dx = ev.clientX - g.x0, dy = ev.clientY - g.y0;
+      if (Math.abs(dx) + Math.abs(dy) > 6) lupa.moveu = true;
+      if (lupa.s > 1.01) { lupa.tx = g.tx0 + dx; lupa.ty = g.ty0 + dy; lupaAplicar(false); }
+      else { lupaEls().img.style.transform = 'translate(' + dx + 'px, 0) scale(1)'; } // arrasto lateral = trocar de foto
+    }
+  }
+  function lupaPointerUp(ev) {
+    if (!lupa.aberta || !lupa.ponteiros[ev.pointerId]) return;
+    delete lupa.ponteiros[ev.pointerId];
+    var g = lupa.gesto, restantes = Object.keys(lupa.ponteiros);
+    if (g && g.tipo === 'pinca') {
+      lupa.gesto = null;
+      if (lupa.s < 1.05) { lupa.s = 1; lupa.tx = 0; lupa.ty = 0; }
+      lupaAplicar(true);
+      if (restantes.length === 1) { var p = lupa.ponteiros[restantes[0]]; lupa.gesto = { tipo: 'arrasto', x0: p.x, y0: p.y, tx0: lupa.tx, ty0: lupa.ty, s0: lupa.s, t0: Date.now() }; lupa.moveu = true; }
+      return;
+    }
+    if (g && g.tipo === 'arrasto') {
+      lupa.gesto = null;
+      var dx = ev.clientX - g.x0;
+      if (lupa.s <= 1.01 && Math.abs(dx) > 60 && lupa.fotos.length > 1) { lupaMostrar(lupa.i + (dx < 0 ? 1 : -1)); return; }
+      if (!lupa.moveu) {
+        var agora = Date.now();
+        if (agora - lupa.ultimoToque < 320) { // duplo toque / duplo clique
+          lupa.ultimoToque = 0;
+          if (lupa.s > 1.01) { lupa.s = 1; lupa.tx = 0; lupa.ty = 0; lupaAplicar(true); }
+          else lupaZoomEm(ZOOM_TOQUE, ev.clientX, ev.clientY, true);
+          return;
+        }
+        lupa.ultimoToque = agora;
+      }
+      lupaAplicar(true);
+    }
+  }
+  function lupaWheel(ev) {
+    if (!lupa.aberta) return;
+    ev.preventDefault();
+    lupaZoomEm(lupa.s * (ev.deltaY < 0 ? 1.18 : 1 / 1.18), ev.clientX, ev.clientY, false);
+  }
+  // Lupa no hover (só desktop): amplia a própria foto do carrossel a partir do ponto do mouse.
+  function lupaHover(ev) {
+    if (!MOUSE_FINO) return;
+    var img = ev.target.closest('.galeria-slide img');
+    var ativo = document.querySelector('.galeria-slide.zoom');
+    if (!img) { if (ativo && ev.type === 'mousemove' && !ev.target.closest('.galeria-slide')) { ativo.classList.remove('zoom'); ativo.querySelector('img').style.transformOrigin = ''; } return; }
+    var slide = img.closest('.galeria-slide'), r = img.getBoundingClientRect();
+    var px = Math.max(0, Math.min(100, (ev.clientX - r.left) / r.width * 100)), py = Math.max(0, Math.min(100, (ev.clientY - r.top) / r.height * 100));
+    img.style.transformOrigin = px + '% ' + py + '%';
+    slide.classList.add('zoom');
+  }
+  function lupaHoverSair(ev) {
+    var slide = ev.target.closest && ev.target.closest('.galeria-slide');
+    if (slide) { slide.classList.remove('zoom'); var im = slide.querySelector('img'); if (im) im.style.transformOrigin = ''; }
   }
 
   function progressoLeve(unidades) {
@@ -930,6 +1090,9 @@
     else if (acao === 'recarregar') { apagar('sa_catalogo', sessionStorage); estado.catalogo = null; rotear(); }
     else if (acao === 'foto') { galeriaIr(Number(el.dataset.i)); }
     else if (acao === 'galeria') { galeriaIr(galeriaIndice() + Number(el.dataset.dir)); }
+    else if (acao === 'lupa') { lupaAbrir(galeriaIndice()); }
+    else if (acao === 'lupa-fechar') { lupaFechar(); }
+    else if (acao === 'lupa-ir') { lupaMostrar(lupa.i + Number(el.dataset.dir)); }
     else if (acao === 'adicionar' || acao === 'comprar') {
       var a = estado.porSku[String(el.dataset.sku).toUpperCase()];
       if (a) adicionarAoCarrinho(a.produto, a.variacao, acao === 'adicionar');
@@ -943,6 +1106,36 @@
       else { inp.select(); document.execCommand('copy'); feito(); }
     }
     else if (acao === 'ja-paguei') { if (estado.pix) conferirPagamento(estado.pix.pedidoId, true); }
+  });
+  // Toque/clique na foto do carrossel abre em tela cheia (um arrasto não conta como clique).
+  var toqueFoto = null;
+  document.addEventListener('pointerdown', function (e) { var img = e.target.closest('.galeria-slide img'); toqueFoto = img ? { x: e.clientX, y: e.clientY, t: Date.now() } : null; });
+  document.addEventListener('pointerup', function (e) {
+    if (!toqueFoto || !e.target.closest('.galeria-slide img')) { toqueFoto = null; return; }
+    var parado = Math.abs(e.clientX - toqueFoto.x) < 8 && Math.abs(e.clientY - toqueFoto.y) < 8 && Date.now() - toqueFoto.t < 600;
+    toqueFoto = null;
+    if (parado) lupaAbrir(galeriaIndice());
+  });
+  document.addEventListener('mousemove', lupaHover);
+  document.addEventListener('mouseout', function (e) { if (e.target.closest && e.target.closest('.galeria-slide') && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('.galeria-slide'))) lupaHoverSair(e); });
+  (function () {
+    var palco = document.getElementById('lupa-palco');
+    if (!palco) return;
+    palco.addEventListener('pointerdown', lupaPointerDown);
+    palco.addEventListener('pointermove', lupaPointerMove);
+    palco.addEventListener('pointerup', lupaPointerUp);
+    palco.addEventListener('pointercancel', lupaPointerUp);
+    palco.addEventListener('wheel', lupaWheel, { passive: false });
+    palco.addEventListener('dblclick', function (e) { e.preventDefault(); });
+    document.getElementById('lupa').addEventListener('click', function (e) { if (e.target === e.currentTarget) lupaFechar(); });
+  })();
+  document.addEventListener('keydown', function (e) {
+    if (!lupa.aberta) return;
+    if (e.key === 'Escape') lupaFechar();
+    else if (e.key === 'ArrowRight') lupaMostrar(lupa.i + 1);
+    else if (e.key === 'ArrowLeft') lupaMostrar(lupa.i - 1);
+    else if (e.key === '+' || e.key === '=') lupaZoomEm(lupa.s * 1.3, innerWidth / 2, innerHeight / 2, true);
+    else if (e.key === '-') lupaZoomEm(lupa.s / 1.3, innerWidth / 2, innerHeight / 2, true);
   });
   // Rolagem por toque no carrossel: marca a miniatura da foto visível.
   document.addEventListener('scroll', function (e) {

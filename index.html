@@ -118,6 +118,14 @@
   </footer>
 
   <div class="toast" id="toast" role="status"></div>
+  <!-- Lupa: foto do produto em tela cheia, com pinça/arrastar no celular e roda do mouse no desktop -->
+  <div class="lupa" id="lupa" role="dialog" aria-modal="true" aria-label="Foto ampliada" hidden>
+    <div class="lupa-palco" id="lupa-palco"><img id="lupa-img" alt="" draggable="false"></div>
+    <button type="button" class="lupa-fechar" data-action="lupa-fechar" aria-label="Fechar">×</button>
+    <button type="button" class="lupa-seta anterior" data-action="lupa-ir" data-dir="-1" aria-label="Foto anterior">‹</button>
+    <button type="button" class="lupa-seta proxima" data-action="lupa-ir" data-dir="1" aria-label="Próxima foto">›</button>
+    <div class="lupa-rodape"><span id="lupa-legenda"></span><span class="lupa-dica" id="lupa-dica"></span></div>
+  </div>
   <script src="/app.js"></script>
 </body>
 </html>

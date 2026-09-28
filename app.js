@@ -1,6 +1,6 @@
 /* Só Armação — loja
  * Uma página só (SPA). O catálogo vem do backend (/api/catalogo, alimentado pelo Bling);
- * preço, desconto Leve 2/3 e frete são sempre os que o servidor devolve (/api/cotar);
+ * preço, desconto do 2º óculos (-30%) e frete são sempre os que o servidor devolve (/api/cotar);
  * o pagamento é criado pelo /api/checkout e acompanhado pelo /api/pedido/:id.
  * O navegador nunca manda preço: só sku e quantidade.
  */
@@ -118,7 +118,7 @@
     catalogo: null,        // resposta do /api/catalogo
     porCodigo: {},         // codigo (maiúsculo) -> produto
     porSku: {},            // sku (maiúsculo) -> { produto, variacao }
-    regras: { leve2_pct: 30, leve3_pct: 50, max_unidades: 20 },
+    regras: { leve2_pct: 30, max_unidades: 20 },
     precoMinimo: null,
     carrinho: ler('sa_cart_v2', []),
     cep: ler('sa_cep', ''),
@@ -175,6 +175,28 @@
     return null;
   }
   function precoSegunda(preco) { return preco * (1 - (estado.regras.leve2_pct || 0) / 100); }
+  // O cadastro do Bling ainda traz "garantia de 1 ano e troca em até 30 dias" nas descrições;
+  // a loja não promete garantia e a troca grátis é de 7 dias úteis. Limpa na exibição.
+  function limparDescricao(texto) {
+    return String(texto || '')
+      .replace(/compre com nota fiscal,?\s*garantia de 1 ano( contra defeito de fabricação)?\s*e\s*troca em até 30 dias\.?/gi, 'Compre com nota fiscal e troca grátis em até 7 dias úteis.')
+      .replace(/,?\s*garantia de 1 ano( contra defeito de fabricação)?/gi, '')
+      .replace(/,?\s*(e\s*)?troca (grátis )?em até 30 dias/gi, '')
+      .replace(/\s{2,}/g, ' ').replace(/\s+([.,])/g, '$1').trim();
+  }
+  // Fotos do modelo: a frontal ({SKU}.jpg) é a do card; no detalhe entram também
+  // -detalhe.jpg e -lateral.jpg do repositório de fotos (some sozinha se a foto não existir).
+  var RE_FOTO_CDN = /^(.*\/so-armacao-fotos@[^/]+\/[^/]+?)\.(jpe?g|png|webp)$/i;
+  function fotosDaVariacao(v, p) {
+    var base = (v.imagens && v.imagens.length ? v.imagens : [v.imagem || p.imagem]).filter(Boolean);
+    var lista = base.map(function (src, i) { return { src: src, rotulo: i === 0 ? 'Frente' : 'Foto ' + (i + 1) }; });
+    var m = base.length === 1 && base[0].match(RE_FOTO_CDN);
+    if (m) {
+      lista.push({ src: m[1] + '-detalhe.' + m[2], rotulo: 'Detalhe', opcional: true });
+      lista.push({ src: m[1] + '-lateral.' + m[2], rotulo: 'Lateral', opcional: true });
+    }
+    return lista;
+  }
   function rotuloEstoque(n) { return n === 1 ? 'Última unidade' : 'Últimas ' + n + ' unidades'; }
   function itemGA(p, v, qty) {
     return { item_id: v ? v.sku : p.codigo, item_name: p.nome + (v && v.cor ? ' — ' + v.cor : ''), item_category: p.formato || '', item_variant: v ? v.cor : undefined, price: v ? v.preco : p.preco, quantity: qty || 1 };
@@ -381,13 +403,13 @@
     titulo('');
     var q = query();
     var grade = gradeProdutos(q);
-    var l2 = estado.regras.leve2_pct, l3 = estado.regras.leve3_pct;
+    var l2 = estado.regras.leve2_pct;
     app.innerHTML =
       '<section class="hero"><div class="container">' +
         '<div class="hero-texto">' +
           '<h1 class="display"><span>Chega de</span><span>pagar caro.</span></h1>' +
           '<div class="etiqueta"><small>A partir de</small><strong>' + h(fmt(estado.precoMinimo || 49)).replace(',', '<sup>,') + '</sup></strong></div>' +
-          '<ul><li>Pix aprovado na hora</li><li>Troca grátis em 30 dias</li><li>A 2ª sai com -' + l2 + '%</li></ul>' +
+          '<ul><li>Pix aprovado na hora</li><li>Troca grátis em até 7 dias úteis</li><li>A 2ª sai com -' + l2 + '%</li></ul>' +
           '<a class="btn btn-laranja" href="/modelos" data-link>Só vem →</a>' +
           '<p class="tagline">Ninguém faz melhor por menos.</p>' +
         '</div>' +
@@ -396,7 +418,7 @@
       '</div></section>' +
       '<div class="fita"></div>' +
       '<section class="beneficios"><div class="container">' +
-        beneficio('qualidade', 'A melhor qualidade') + beneficio('preco', 'O menor preço') + beneficio('online', '100% online, 0% vitrine') + beneficio('troca', 'Troca grátis em 30 dias') +
+        beneficio('qualidade', 'A melhor qualidade') + beneficio('preco', 'O menor preço') + beneficio('online', '100% online, 0% vitrine') + beneficio('troca', 'Troca grátis em até 7 dias úteis') +
       '</div></section>' +
       '<section class="secao" id="modelos"><div class="container">' +
         '<div class="secao-titulo"><h2 class="display">Todos os modelos</h2><span class="contagem" id="contagem">' + grade.total + ' modelo' + (grade.total === 1 ? '' : 's') + '</span></div>' +
@@ -404,9 +426,9 @@
       '</div></section>' +
       '<section class="leve2"><div class="container">' +
         '<h2 class="display">A 2ª armação sai com <em>-' + l2 + '%.</em></h2>' +
-        '<p>Levando 2 no mesmo pedido, a 2ª sai com ' + l2 + '% de desconto e a 3ª com ' + l3 + '%. O frete é um só pro pedido inteiro. Uma pro trampo, uma pro rolê.</p>' +
+        '<p>Levando 2 no mesmo pedido, a 2ª sai com ' + l2 + '% de desconto — é o único desconto da loja, e aparece sozinho no carrinho. O frete é um só pro pedido inteiro. Uma pro trampo, uma pro rolê.</p>' +
         '<a class="btn btn-laranja" href="/modelos" data-link style="justify-self:start">Escolher modelos</a>' +
-        '<div class="passos"><div class="passo"><strong>1ª</strong><span>preço cheio</span></div><div class="passo"><strong>-' + l2 + '%</strong><span>na 2ª armação</span></div><div class="passo"><strong>-' + l3 + '%</strong><span>na 3ª em diante</span></div></div>' +
+        '<div class="passos"><div class="passo"><strong>1ª</strong><span>preço cheio</span></div><div class="passo"><strong>-' + l2 + '%</strong><span>na 2ª armação</span></div><div class="passo"><strong>1</strong><span>frete pro pedido inteiro</span></div></div>' +
       '</div></section>' +
       '<section class="secao"><div class="container">' +
         '<div class="secao-titulo"><h2 class="display">Como funciona</h2></div>' +
@@ -414,7 +436,7 @@
           passo(1, 'Escolha a armação', 'Filtre por formato e cor. Todas as medidas estão na página do modelo.') +
           passo(2, 'Adicione ao carrinho', 'Levando 2, a 2ª sai com -' + l2 + '%. O frete é calculado pelo seu CEP.') +
           passo(3, 'Pague no Pix ou cartão', 'No Pix a confirmação é automática, em segundos. No cartão, dá pra parcelar.') +
-          passo(4, 'Receba em casa', 'Postagem com rastreio e nota fiscal. Não serviu? Troca grátis em 30 dias.') +
+          passo(4, 'Receba em casa', 'Postagem com rastreio e nota fiscal. Não serviu? Troca grátis em até 7 dias úteis.') +
         '</div>' +
       '</div></section>' +
       '<section class="secao faq"><div class="container">' +
@@ -435,18 +457,18 @@
     var l2 = estado.regras.leve2_pct;
     var itens = [
       ['A armação vem com as lentes?', 'Não — vendemos só a armação, que é o que encarece na ótica. Você leva a nossa armação pra colocar as lentes do seu grau na ótica ou no laboratório da sua confiança.'],
-      ['Como funciona a troca grátis?', 'Não serviu, não gostou, mudou de ideia? Em até 30 dias depois de receber, a gente troca por outro modelo ou devolve o dinheiro. Você não paga o frete da devolução.'],
+      ['Como funciona a troca grátis?', 'Compra online tem direito de arrependimento: em até 7 dias úteis depois de receber, se não serviu, não gostou ou mudou de ideia, a gente troca por outro modelo ou devolve o dinheiro — sem custo, você não paga o frete da devolução. Depois desse prazo, a troca é só por defeito de fabricação.'],
       ['Quanto tempo demora pra chegar?', 'Até 3 dias úteis na Grande São Paulo e até 5 dias úteis pro resto do Brasil, contados da confirmação do pagamento. O código de rastreio chega no seu e-mail.'],
-      ['Como funciona o Leve 2?', 'Levando 2 armações no mesmo pedido, a 2ª sai com ' + l2 + '% de desconto. Levando 3, a 3ª sai com ' + estado.regras.leve3_pct + '%. O desconto aparece sozinho no carrinho.'],
+      ['Como funciona o desconto da 2ª armação?', 'Levando 2 armações no mesmo pedido, a 2ª (a de menor valor) sai com ' + l2 + '% de desconto. É o único desconto da loja e aparece sozinho no carrinho. A cada 2 armações, uma sai com ' + l2 + '% off.'],
       ['Tem nota fiscal?', 'Sempre. Todo pedido sai com NF-e no seu nome, enviada por e-mail.'],
-      ['E se a armação vier com defeito?', 'Troca e devolução seguem o Código de Defesa do Consumidor: 7 dias de arrependimento com reembolso integral e 90 dias de garantia legal contra defeito de fabricação. É só mandar um e-mail com o número do pedido e uma foto.'],
+      ['E se a armação vier com defeito?', 'Passados os 7 dias úteis de arrependimento, a troca é só por defeito de fabricação, como manda o Código de Defesa do Consumidor: até 90 dias depois do recebimento. É só mandar um e-mail com o número do pedido e uma foto. Não oferecemos garantia além do que a lei determina.'],
       ['Quais as formas de pagamento?', 'Pix, com confirmação automática em segundos, ou cartão de crédito, parcelado. O cartão é processado numa página segura da operadora — seus dados não passam pelo nosso site.']
     ];
     return itens.map(function (i) { return '<details><summary>' + h(i[0]) + '</summary><p>' + h(i[1]) + '</p></details>'; }).join('');
   }
 
   function viewModelos() {
-    titulo('Todos os modelos', 'Todas as armações da Só Armação: gatinho, redondo, retangular, quadrado e hexagonal. Preço baixo todo dia e troca grátis em 30 dias.');
+    titulo('Todos os modelos', 'Todas as armações da Só Armação: gatinho, redondo, retangular, quadrado e hexagonal. Preço baixo todo dia e troca grátis em até 7 dias úteis.');
     var q = query();
     var grade = gradeProdutos(q);
     app.innerHTML = '<section class="secao"><div class="container">' +
@@ -472,10 +494,10 @@
     var variacoes = (p.variacoes || []).slice().sort(function (a, b) { return (a.ordem || 0) - (b.ordem || 0); });
     var v = achado.variacao || variacoes.find(function (x) { return q.cor && (x.cor_slug || slug(x.cor)) === q.cor; }) || variacoes.find(function (x) { return x.estoque > 0; }) || variacoes[0];
     if (!v) { app.innerHTML = '<div class="container institucional"><h1 class="display">Modelo sem variações.</h1></div>'; return; }
-    var imagens = (v.imagens && v.imagens.length ? v.imagens : [v.imagem || p.imagem]).filter(Boolean);
+    var fotos = fotosDaVariacao(v, p);
+    var imagens = fotos.map(function (f) { return f.src; });
     var esgotado = !(v.estoque > 0);
-    // O cadastro do Bling ainda traz "garantia de 1 ano" em algumas descrições; a loja não promete isso.
-    var desc = String(p.descricao || '').replace(/,?\s*garantia de 1 ano( contra defeito de fabricação)?/gi, '').replace(/\s{2,}/g, ' ').trim();
+    var desc = limparDescricao(p.descricao);
     titulo(p.nome + (v.cor ? ' ' + v.cor : ''), desc.slice(0, 155));
     jsonLd({ '@context': 'https://schema.org', '@type': 'Product', name: p.nome, sku: v.sku, brand: { '@type': 'Brand', name: p.marca || 'Só Armação' }, description: desc, image: imagens, color: v.cor,
       offers: { '@type': 'Offer', url: CONFIG.site + (v.url || p.url), priceCurrency: 'BRL', price: v.preco, availability: esgotado ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock', itemCondition: 'https://schema.org/NewCondition' } });
@@ -484,15 +506,11 @@
     app.innerHTML = '<div class="container">' +
       '<nav class="migalhas" aria-label="Você está em"><a href="/" data-link>Início</a> › <a href="/modelos" data-link>Modelos</a> › ' + (p.formato ? '<a href="/modelos?formato=' + h(slug(p.formato)) + '" data-link>' + h(p.formato) + '</a> › ' : '') + '<span>' + h(p.nome) + '</span></nav>' +
       '<div class="produto">' +
-        '<div class="galeria">' +
-          '<div class="galeria-principal">' + (esgotado ? '<span class="badge esgotado">Esgotado</span>' : (v.estoque <= 5 ? '<span class="badge">' + rotuloEstoque(v.estoque) + '</span>' : '')) +
-            (imagens[0] ? '<img id="foto-principal" src="' + h(imagens[0]) + '" alt="' + h(p.nome + ' ' + (v.cor || '')) + '" width="800" height="800">' : '<span>foto em breve</span>') + '</div>' +
-          (imagens.length > 1 ? '<div class="galeria-thumbs">' + imagens.map(function (src, i) { return '<button class="' + (i === 0 ? 'ativo' : '') + '" data-action="foto" data-src="' + h(src) + '" aria-label="Foto ' + (i + 1) + '"><img src="' + h(src) + '" alt="" loading="lazy"></button>'; }).join('') + '</div>' : '') +
-        '</div>' +
+        galeriaHtml(fotos, p.nome + (v.cor ? ' ' + v.cor : ''), esgotado ? '<span class="badge esgotado">Esgotado</span>' : (v.estoque <= 5 ? '<span class="badge">' + rotuloEstoque(v.estoque) + '</span>' : '')) +
         '<div class="produto-info">' +
           '<div><span class="card-linha">' + h(p.formato || 'Armação') + (p.marca ? ' · ' + h(p.marca) : '') + '</span><h1 class="display">' + h(p.nome) + '</h1></div>' +
           '<div class="preco-bloco"><span class="valor">' + h(fmt(v.preco)) + '<small>no Pix</small></span>' +
-            '<span class="segunda">Leve 2: a 2ª sai por ' + h(fmt(precoSegunda(v.preco))) + '</span>' +
+            '<span class="segunda">Levando 2, a 2ª sai por ' + h(fmt(precoSegunda(v.preco))) + '</span>' +
             '<span class="parcelas">ou no cartão em até 6x</span></div>' +
           (variacoes.length > 1 ? '<div class="cores"><span class="rotulo">Cor: ' + h(v.cor) + '</span><div class="opcoes">' + variacoes.map(function (x) {
               return '<a class="cor-opcao' + (x.sku === v.sku ? ' ativo' : '') + (x.estoque > 0 ? '' : ' esgotado') + '" href="' + h(x.url) + '" data-link title="' + h(x.cor) + '">' + (x.imagem ? '<img src="' + h(x.imagem) + '" alt="">' : '') + '<span>' + h(x.cor) + '</span></a>';
@@ -502,7 +520,7 @@
             '<button class="btn btn-laranja btn-bloco" data-action="comprar" data-sku="' + h(v.sku) + '"' + (esgotado ? ' disabled' : '') + '>Comprar agora</button>' +
             '<button class="btn btn-contorno btn-bloco" data-action="adicionar" data-sku="' + h(v.sku) + '"' + (esgotado ? ' disabled' : '') + '>Adicionar ao carrinho</button>' +
           '</div>' +
-          '<ul class="garantias"><li>Nota fiscal em todo pedido</li><li>Troca grátis em 30 dias</li><li>Troca e devolução conforme o Código de Defesa do Consumidor</li><li>Pix aprovado na hora · cartão em até 6x</li></ul>' +
+          '<ul class="garantias"><li>Nota fiscal em todo pedido</li><li>Troca grátis em até 7 dias úteis (arrependimento)</li><li>Depois, troca só por defeito de fabricação, conforme o Código de Defesa do Consumidor</li><li>Pix aprovado na hora · cartão em até 6x</li></ul>' +
           '<div><div class="bloco-titulo">Medidas</div><table class="medidas"><tbody>' +
             (med.lente ? '<tr><th>Largura da lente</th><td>' + med.lente + ' mm</td></tr>' : '') +
             (med.ponte ? '<tr><th>Ponte</th><td>' + med.ponte + ' mm</td></tr>' : '') +
@@ -522,17 +540,68 @@
     track('view_item', { value: v.preco, items: [itemGA(p, v, 1)] });
   }
 
+  // Carrossel de fotos do produto: trilho com rolagem por toque (scroll-snap), setas e miniaturas.
+  function galeriaHtml(fotos, alt, badge) {
+    if (!fotos.length) return '<div class="galeria"><div class="galeria-principal">' + badge + '<span class="sem-foto">foto em breve</span></div></div>';
+    return '<div class="galeria" id="galeria">' +
+      '<div class="galeria-principal">' + badge +
+        '<div class="galeria-trilho" id="galeria-trilho">' + fotos.map(function (f, i) {
+          return '<figure class="galeria-slide" data-i="' + i + '"><img src="' + h(f.src) + '" alt="' + h(alt + ' — ' + f.rotulo.toLowerCase()) + '" width="800" height="800"' + (i ? ' loading="lazy"' : ' fetchpriority="high"') + (f.opcional ? ' data-opcional="1"' : '') + '></figure>';
+        }).join('') + '</div>' +
+        '<button class="galeria-seta anterior" type="button" data-action="galeria" data-dir="-1" aria-label="Foto anterior">‹</button>' +
+        '<button class="galeria-seta proxima" type="button" data-action="galeria" data-dir="1" aria-label="Próxima foto">›</button>' +
+      '</div>' +
+      '<div class="galeria-thumbs" role="tablist">' + fotos.map(function (f, i) {
+        return '<button type="button" class="' + (i === 0 ? 'ativo' : '') + '" data-action="foto" data-i="' + i + '" role="tab" aria-label="' + h(f.rotulo) + '"><img src="' + h(f.src) + '" alt="" loading="lazy"' + (f.opcional ? ' data-opcional="1"' : '') + '><span>' + h(f.rotulo) + '</span></button>';
+      }).join('') + '</div>' +
+    '</div>';
+  }
+  function galeriaIr(i, suave) {
+    var trilho = document.getElementById('galeria-trilho');
+    if (!trilho) return;
+    var slides = trilho.querySelectorAll('.galeria-slide');
+    if (!slides.length) return;
+    i = Math.max(0, Math.min(slides.length - 1, i));
+    trilho.scrollTo({ left: slides[i].offsetLeft - trilho.offsetLeft, behavior: suave === false ? 'auto' : 'smooth' });
+    galeriaMarcar(i);
+  }
+  function galeriaMarcar(i) {
+    var g = document.getElementById('galeria');
+    if (!g) return;
+    var thumbs = g.querySelectorAll('.galeria-thumbs button');
+    thumbs.forEach(function (b, k) { b.classList.toggle('ativo', k === i); b.setAttribute('aria-selected', k === i ? 'true' : 'false'); });
+    g.classList.toggle('so-uma', g.querySelectorAll('.galeria-slide').length < 2);
+  }
+  function galeriaIndice() {
+    var trilho = document.getElementById('galeria-trilho');
+    if (!trilho || !trilho.clientWidth) return 0;
+    return Math.round(trilho.scrollLeft / trilho.clientWidth);
+  }
+  // Foto opcional (detalhe/lateral) que não existe no repositório: some do carrossel e das miniaturas.
+  function galeriaRemover(src) {
+    var g = document.getElementById('galeria');
+    if (!g || !src) return;
+    g.querySelectorAll('.galeria-slide img, .galeria-thumbs button img').forEach(function (im) {
+      if (im.getAttribute('src') !== src) return;
+      var alvo = im.closest('.galeria-slide') || im.closest('button');
+      if (alvo) alvo.remove();
+    });
+    g.querySelectorAll('.galeria-slide').forEach(function (s, k) { s.setAttribute('data-i', k); });
+    g.querySelectorAll('.galeria-thumbs button').forEach(function (b, k) { b.setAttribute('data-i', k); });
+    galeriaMarcar(Math.min(galeriaIndice(), g.querySelectorAll('.galeria-slide').length - 1));
+  }
+
   function progressoLeve(unidades) {
-    var l2 = estado.regras.leve2_pct, l3 = estado.regras.leve3_pct, msg, pct;
-    if (unidades <= 1) { msg = 'Falta 1 pro Leve 2 — a 2ª sai com -' + l2 + '%'; pct = 33; }
-    else if (unidades === 2) { msg = 'Leve 2 ativado! Falta 1 pro Leve 3 (-' + l3 + '% na 3ª)'; pct = 66; }
-    else { msg = 'Leve 3 ativado — desconto máximo no pedido'; pct = 100; }
+    var l2 = estado.regras.leve2_pct, msg, pct, pares = Math.floor(unidades / 2);
+    if (unidades <= 1) { msg = 'Falta 1 pro desconto: a 2ª armação sai com -' + l2 + '%'; pct = 50; }
+    else if (unidades % 2 === 0) { msg = 'Desconto ativado: ' + (pares === 1 ? 'a 2ª armação sai' : pares + ' armações saem') + ' com -' + l2 + '%'; pct = 100; }
+    else { msg = 'Desconto ativado em ' + pares + (pares === 1 ? ' armação' : ' armações') + ' — mais 1 e a próxima também sai com -' + l2 + '%'; pct = 100; }
     return '<div class="progresso"><span class="msg">' + h(msg) + '</span><div class="barra"><i style="width:' + pct + '%"></i></div></div>';
   }
   function resumoHtml(r, comCta) {
     if (!r) return '';
     return '<div class="resumo-linha"><span>Subtotal (' + r.unidades + ' ' + (r.unidades === 1 ? 'armação' : 'armações') + ')</span><span>' + h(fmt(r.subtotal)) + '</span></div>' +
-      (r.desconto > 0 ? '<div class="resumo-linha desconto"><span>Leve 2/3 (-' + (r.desconto_pct || '') + '%)</span><span>-' + h(fmt(r.desconto)) + '</span></div>' : '') +
+      (r.desconto > 0 ? '<div class="resumo-linha desconto"><span>2ª armação com -' + (r.desconto_pct || estado.regras.leve2_pct) + '%' + (r.unidades_com_desconto > 1 ? ' (×' + r.unidades_com_desconto + ')' : '') + '</span><span>-' + h(fmt(r.desconto)) + '</span></div>' : '') +
       '<div class="resumo-linha"><span>Frete' + (r.frete_prazo ? ' <small>(' + h(r.frete_prazo) + ')</small>' : '') + '</span><span>' + (r.frete == null ? 'informe o CEP' : (r.frete === 0 ? 'grátis' : h(fmt(r.frete)))) + '</span></div>' +
       '<div class="resumo-linha total"><span>Total</span><span class="num">' + h(fmt(r.total)) + '</span></div>';
   }
@@ -563,7 +632,7 @@
           (resumo && resumo.endereco ? '<p class="endereco-resolvido">' + h([resumo.endereco.logradouro, resumo.endereco.bairro, resumo.endereco.cidade ? resumo.endereco.cidade + '/' + resumo.endereco.uf : ''].filter(Boolean).join(', ')) + '</p>' : '') +
           (carregando ? '<p class="endereco-resolvido"><span class="spinner"></span> Calculando…</p>' : resumoHtml(resumo ? Object.assign({}, resumo.resumo, { endereco: undefined }) : null)) +
           '<a class="btn btn-laranja btn-bloco" href="/checkout" data-link' + (erro ? ' aria-disabled="true" style="pointer-events:none;opacity:.55"' : '') + '>Fechar pedido →</a>' +
-          '<p class="endereco-resolvido">Pix aprovado na hora · cartão em até 6x · nota fiscal · troca grátis em 30 dias</p>' +
+          '<p class="endereco-resolvido">Pix aprovado na hora · cartão em até 6x · nota fiscal · troca grátis em até 7 dias úteis</p>' +
         '</div></div></div>';
     }
     render(null, '', true);
@@ -789,17 +858,17 @@
   var PAGINAS = {
     'quem-somos': { t: 'Quem somos', d: 'A Só Armação é uma loja 100% online de armações de óculos de grau, de São Bernardo do Campo/SP.', b: [
       ['', 'A Só Armação nasceu de uma conta que não fechava: a armação que custa pouco pra fabricar chega na ótica custando dez vezes mais. A gente tirou o que encarece — loja física, atravessador, marca de grife — e deixou o que importa: armação de qualidade, preço justo e entrega rápida.'],
-      ['', 'Somos 100% online. Vendemos só a armação — você coloca as lentes do seu grau na ótica ou no laboratório da sua confiança. Preço baixo todo dia, sem promoção de mentira. Nota fiscal em todo pedido e troca grátis em 30 dias, com troca e devolução seguindo o Código de Defesa do Consumidor.'],
+      ['', 'Somos 100% online. Vendemos só a armação — você coloca as lentes do seu grau na ótica ou no laboratório da sua confiança. Preço baixo todo dia, sem promoção de mentira. Nota fiscal em todo pedido e troca grátis em até 7 dias úteis, com troca e devolução seguindo o Código de Defesa do Consumidor.'],
       ['', 'Ninguém faz melhor por menos.']] },
     'como-comprar': { t: 'Como comprar', d: 'Passo a passo pra comprar sua armação na Só Armação.', b: [
       ['1 — Escolha a armação', 'Navegue pelos modelos e use os filtros de formato e cor. Todas as medidas (lente, ponte, haste e largura frontal) estão na página de cada modelo — compare com um óculos que já serve bem em você.'],
-      ['2 — Adicione ao carrinho', 'Levando 2 armações no mesmo pedido, a 2ª sai com desconto; levando 3, a 3ª sai com desconto maior. O frete é um só pro pedido inteiro e é calculado pelo seu CEP.'],
+      ['2 — Adicione ao carrinho', 'Levando 2 armações no mesmo pedido, a 2ª (a de menor valor) sai com 30% de desconto — é o único desconto da loja. O frete é um só pro pedido inteiro e é calculado pelo seu CEP.'],
       ['3 — Informe seus dados', 'Nome, CPF, e-mail, WhatsApp, CEP e número. O endereço é preenchido sozinho a partir do CEP.'],
       ['4 — Pague no Pix ou no cartão', 'No Pix, escaneie o QR Code ou copie o código: a confirmação é automática, em segundos. No cartão de crédito, o pagamento abre numa página segura da operadora e você pode parcelar.'],
       ['5 — Receba em casa', 'Até 3 dias úteis na Grande São Paulo e até 5 dias úteis pro resto do Brasil, contados da confirmação do pagamento. O rastreio chega no seu e-mail.']] },
     entrega: { t: 'Entrega e frete', d: 'Prazos, valor do frete e rastreio dos pedidos da Só Armação.', b: [
       ['Prazo', 'Até 3 dias úteis na Grande São Paulo e até 5 dias úteis pra todo o Brasil, contados a partir da confirmação do pagamento.'],
-      ['Valor', 'Calculado pelo seu CEP, direto no carrinho, antes de você pagar. Levando 2 ou 3 armações, o frete é um só pro pedido inteiro.'],
+      ['Valor', 'Calculado pelo seu CEP, direto no carrinho, antes de você pagar. Levando 2 ou mais armações, o frete é um só pro pedido inteiro.'],
       ['Rastreio', 'O código de rastreio chega no seu e-mail assim que o pedido é postado.'],
       ['Endereço errado?', 'Avise a gente por e-mail (' + CONFIG.email + ') antes da postagem que a gente corrige sem custo.']] },
     pagamento: { t: 'Pagamento', d: 'Pix com confirmação automática ou cartão de crédito parcelado.', b: [
@@ -807,10 +876,9 @@
       ['Cartão de crédito', 'O pagamento abre numa página segura da operadora e volta pro site com a resposta. Dá pra parcelar em até 6x; o valor das parcelas é confirmado na página da operadora. O pedido é liberado depois da aprovação.'],
       ['É seguro?', 'O Pix é do Banco Central e o código gerado vale só pro seu pedido, com o valor exato. Os dados do cartão são digitados na página da operadora — nunca passam pelo nosso site.'],
       ['Reembolso', 'Cancelamento e devolução são reembolsados na mesma forma de pagamento do pedido.']] },
-    'trocas-e-devolucoes': { t: 'Trocas e devoluções', d: 'Troca grátis em 30 dias e devolução com reembolso integral na Só Armação.', b: [
-      ['Troca grátis em 30 dias', 'Não serviu, não gostou ou mudou de ideia? Em até 30 dias corridos depois de receber, você pode trocar por outro modelo ou devolver e receber o dinheiro de volta. A armação precisa estar sem uso, sem lentes de grau instaladas e com a embalagem e os acessórios que vieram com ela.'],
-      ['Direito de arrependimento', 'Como manda o Código de Defesa do Consumidor (art. 49), você pode desistir da compra em até 7 dias corridos depois de receber o produto, com reembolso integral, incluindo o frete pago.'],
-      ['Defeito de fabricação', 'Vale a garantia legal do Código de Defesa do Consumidor: 90 dias a partir do recebimento (art. 26) para defeito de fabricação, como solda, pintura ou dobradiça. Não oferecemos garantia estendida além do que a lei determina.'],
+    'trocas-e-devolucoes': { t: 'Trocas e devoluções', d: 'Troca grátis em até 7 dias úteis (direito de arrependimento) e, depois, troca só por defeito de fabricação, conforme o Código de Defesa do Consumidor.', b: [
+      ['Troca grátis em até 7 dias úteis', 'Compra online tem direito de arrependimento (Código de Defesa do Consumidor, art. 49). Não serviu, não gostou ou mudou de ideia? Em até 7 dias úteis depois de receber, você pode trocar por outro modelo ou devolver e receber o dinheiro de volta, com reembolso integral, incluindo o frete pago. A armação precisa estar sem uso, sem lentes de grau instaladas e com a embalagem e os acessórios que vieram com ela.'],
+      ['Depois de 7 dias úteis: só defeito de fabricação', 'Passado o prazo de arrependimento, a troca é só por defeito de fabricação — solda, pintura, dobradiça — dentro da garantia legal do Código de Defesa do Consumidor: 90 dias a partir do recebimento (art. 26). Não oferecemos garantia além do que a lei determina. Queda, uso indevido ou lentes instaladas de forma errada não são defeito de fabricação.'],
       ['Como pedir', 'Mande um e-mail pra ' + CONFIG.email + ' com o número do pedido, o motivo e, se for defeito, uma foto. Respondemos em até 1 dia útil com a etiqueta de postagem — você não paga o frete da devolução.'],
       ['Reembolso', 'Feito na mesma forma de pagamento assim que a armação chegar e for conferida: no Pix, em até 2 dias úteis; no cartão, o estorno aparece na fatura conforme o prazo da operadora.']] },
     privacidade: { t: 'Política de privacidade', d: 'Como a Só Armação coleta, usa e protege seus dados (LGPD).', b: [
@@ -824,6 +892,7 @@
       ['Estoque', 'Quantidade limitada por modelo e cor. Se um item acabar entre o carrinho e o pagamento, o pedido não é concluído e nada é cobrado — e se houver cobrança, devolvemos 100% do valor.'],
       ['Produto', 'Vendemos a armação sem lentes de grau. As lentes são colocadas na ótica ou no laboratório da sua escolha.'],
       ['Cancelamento', 'Pedido pago pode ser cancelado até a postagem, com devolução integral na mesma forma de pagamento.'],
+      ['Trocas e devoluções', 'Troca grátis em até 7 dias úteis depois do recebimento, pelo direito de arrependimento. Depois disso, troca só por defeito de fabricação, conforme o Código de Defesa do Consumidor. Os detalhes estão na página Trocas e devoluções.'],
       ['Empresa', 'So Armacao Comercio de Armacoes Ltda — Avenida Armando Italo Setti, 520, sala 81, Baeta Neves, São Bernardo do Campo/SP, CEP 09760-280.']] },
     contato: { t: 'Fale conosco', d: 'Atendimento da Só Armação por e-mail.', b: [
       ['E-mail', CONFIG.email + ' — respondemos em até 1 dia útil. Coloque o número do pedido no assunto que fica mais rápido.'],
@@ -859,7 +928,8 @@
     if (acao === 'filtro' && el.tagName === 'BUTTON') { var o = {}; o[el.dataset.chave] = el.dataset.valor; setQuery(o); atualizarGrade(); track('filter_use', { filtro: el.dataset.chave, valor: el.dataset.valor }); }
     else if (acao === 'limpar-filtros') { history.replaceState({}, '', location.pathname); atualizarGrade(); }
     else if (acao === 'recarregar') { apagar('sa_catalogo', sessionStorage); estado.catalogo = null; rotear(); }
-    else if (acao === 'foto') { var img = document.getElementById('foto-principal'); if (img) img.src = el.dataset.src; document.querySelectorAll('.galeria-thumbs button').forEach(function (b) { b.classList.toggle('ativo', b === el); }); }
+    else if (acao === 'foto') { galeriaIr(Number(el.dataset.i)); }
+    else if (acao === 'galeria') { galeriaIr(galeriaIndice() + Number(el.dataset.dir)); }
     else if (acao === 'adicionar' || acao === 'comprar') {
       var a = estado.porSku[String(el.dataset.sku).toUpperCase()];
       if (a) adicionarAoCarrinho(a.produto, a.variacao, acao === 'adicionar');
@@ -874,6 +944,18 @@
     }
     else if (acao === 'ja-paguei') { if (estado.pix) conferirPagamento(estado.pix.pedidoId, true); }
   });
+  // Rolagem por toque no carrossel: marca a miniatura da foto visível.
+  document.addEventListener('scroll', function (e) {
+    if (!(e.target instanceof Element) || e.target.id !== 'galeria-trilho') return;
+    if (estado.galeriaRaf) return;
+    estado.galeriaRaf = requestAnimationFrame(function () { estado.galeriaRaf = 0; galeriaMarcar(galeriaIndice()); });
+  }, true);
+  // Erro de carregamento de imagem (fase de captura, porque 'error' não borbulha).
+  document.addEventListener('error', function (e) {
+    var img = e.target;
+    if (!(img instanceof HTMLImageElement)) return;
+    if (img.dataset.opcional && (img.closest('.galeria-slide') || img.closest('.galeria-thumbs'))) galeriaRemover(img.getAttribute('src'));
+  }, true);
   document.addEventListener('change', function (e) {
     var el = e.target;
     if (el.matches('select[data-action="filtro"]')) { var o = {}; o[el.dataset.chave] = el.value; setQuery(o); atualizarGrade(); track('filter_use', { filtro: el.dataset.chave, valor: el.value }); }

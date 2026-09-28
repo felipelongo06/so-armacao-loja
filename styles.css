@@ -244,12 +244,26 @@ input, select, textarea { font: inherit; color: inherit; }
 .produto { display: grid; gap: 22px; padding-bottom: 40px; }
 @media (min-width: 820px) { .produto { grid-template-columns: 1.1fr .9fr; gap: 40px; align-items: start; } }
 .galeria { display: grid; gap: 10px; }
-.galeria-principal { background: var(--branco); border: 1px solid var(--creme-2); border-radius: var(--raio); aspect-ratio: 1 / 1; display: grid; place-items: center; padding: 16px; position: relative; }
-.galeria-principal img { width: 100%; height: 100%; object-fit: contain; }
-.galeria-thumbs { display: flex; gap: 8px; overflow-x: auto; }
-.galeria-thumbs button { flex: none; width: 64px; height: 64px; border: 2px solid var(--creme-2); background: var(--branco); border-radius: var(--raio); padding: 4px; }
+.galeria-principal { background: var(--branco); border: 1px solid var(--creme-2); border-radius: var(--raio); aspect-ratio: 1 / 1; position: relative; overflow: hidden; }
+.galeria-principal .badge { z-index: 2; }
+.galeria-principal .sem-foto { display: grid; place-items: center; height: 100%; font: 12px/1.2 monospace; color: var(--texto-suave); }
+/* Carrossel: rola por toque (scroll-snap); setas e miniaturas só mudam o scroll. */
+.galeria-trilho { position: absolute; inset: 0; display: flex; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; overscroll-behavior-x: contain; }
+.galeria-trilho::-webkit-scrollbar { display: none; }
+.galeria-slide { flex: 0 0 100%; width: 100%; height: 100%; min-width: 0; margin: 0; box-sizing: border-box; scroll-snap-align: start; scroll-snap-stop: always; display: grid; place-items: center; padding: 16px; }
+.galeria-slide img { display: block; width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: contain; }
+.galeria-seta { position: absolute; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--creme-2); background: rgba(255,255,255,.92); color: var(--verde-escuro); font: 700 26px/1 var(--texto-font); display: grid; place-items: center; padding: 0 0 3px; box-shadow: 0 2px 8px rgba(0,0,0,.12); z-index: 2; }
+.galeria-seta.anterior { left: 8px; }
+.galeria-seta.proxima { right: 8px; }
+.galeria.so-uma .galeria-seta, .galeria.so-uma .galeria-thumbs { display: none; }
+@media (hover: none) and (pointer: coarse) { .galeria-seta { display: none; } }
+.galeria-thumbs { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+.galeria-thumbs::-webkit-scrollbar { display: none; }
+.galeria-thumbs button { flex: none; width: 72px; border: 2px solid var(--creme-2); background: var(--branco); border-radius: var(--raio); padding: 4px 4px 2px; display: grid; gap: 2px; justify-items: center; }
 .galeria-thumbs button.ativo { border-color: var(--verde-escuro); }
-.galeria-thumbs img { width: 100%; height: 100%; object-fit: contain; }
+.galeria-thumbs img { width: 60px; height: 60px; object-fit: contain; }
+.galeria-thumbs span { font-size: 11px; font-weight: 700; color: var(--texto-suave); text-transform: uppercase; letter-spacing: .02em; }
+.galeria-thumbs button.ativo span { color: var(--verde-escuro); }
 .produto-info { display: grid; gap: 14px; }
 .produto-info h1 { font-size: clamp(30px, 6vw, 44px); line-height: 1; }
 .preco-bloco { display: grid; gap: 2px; }

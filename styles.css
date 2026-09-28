@@ -157,6 +157,8 @@ input, select, textarea { font: inherit; color: inherit; }
 
 /* ---------- Filtros ---------- */
 .filtros { display: grid; gap: 10px; margin-bottom: 18px; }
+.chips-linha { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 10px; }
+.chips-rotulo { font-size: 11px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--texto-suave); white-space: nowrap; }
 .chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
 .chips::-webkit-scrollbar { display: none; }
 .chip {
@@ -164,11 +166,11 @@ input, select, textarea { font: inherit; color: inherit; }
   padding: 9px 14px; border: 2px solid var(--verde-escuro); background: var(--branco); color: var(--verde-escuro); border-radius: var(--raio);
 }
 .chip.ativo { background: var(--verde-escuro); color: var(--laranja); }
-.selects { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-.selects label { display: grid; gap: 4px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; }
+.selects { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.selects label { display: grid; gap: 4px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; min-width: 0; }
 .selects select {
   border: 2px solid var(--verde-escuro); background: var(--branco); color: var(--verde-escuro); font-weight: 700; font-size: 14px;
-  padding: 9px 8px; border-radius: 0; min-height: 44px;
+  padding: 9px 8px; border-radius: 0; min-height: 44px; width: 100%; min-width: 0; max-width: 100%;
 }
 .filtros-limpar { justify-self: start; }
 @media (min-width: 820px) { .selects { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); } }

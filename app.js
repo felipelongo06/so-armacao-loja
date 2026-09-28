@@ -261,7 +261,8 @@
     { re: /^\/pix\/?$/, view: viewPix, nav: 'carrinho' },
     { re: /^\/confirmacao\/?$/, view: viewConfirmacao, nav: 'carrinho' },
     { re: /^\/ajuda\/?$/, view: viewAjuda, nav: 'ajuda' },
-    { re: /^\/(quem-somos|como-comprar|entrega|pagamento|trocas-e-devolucoes|garantia|privacidade|termos|contato)\/?$/, view: viewInstitucional, nav: 'ajuda' }
+    { re: /^\/garantia\/?$/, view: function () { navegar('/trocas-e-devolucoes', true); }, nav: 'ajuda' },
+    { re: /^\/(quem-somos|como-comprar|entrega|pagamento|trocas-e-devolucoes|privacidade|termos|contato)\/?$/, view: viewInstitucional, nav: 'ajuda' }
   ];
   var geracao = 0; // muda a cada rota: resposta atrasada de uma tela antiga não sobrescreve a atual
   function rotear() {
@@ -343,14 +344,21 @@
     if (comp) lista.sort(comp);
     return lista;
   }
+  function linhaChips(chave, rotulo, opcoes, q, todos) {
+    if (!(opcoes || []).length) return '';
+    return '<div class="chips-linha"><span class="chips-rotulo">' + h(rotulo) + '</span><div class="chips" role="tablist">' +
+      '<button class="chip' + (!q[chave] ? ' ativo' : '') + '" data-action="filtro" data-chave="' + chave + '" data-valor="">' + h(todos) + '</button>' +
+      opcoes.map(function (o) {
+        return '<button class="chip' + (q[chave] === o.slug ? ' ativo' : '') + '" data-action="filtro" data-chave="' + chave + '" data-valor="' + h(o.slug) + '">' + h(o.valor) + '</button>';
+      }).join('') + '</div></div>';
+  }
   function blocoFiltros(q, total) {
     var f = estado.catalogo.facetas || {};
-    var chips = '<div class="chips" role="tablist">' +
-      '<button class="chip' + (!q.formato ? ' ativo' : '') + '" data-action="filtro" data-chave="formato" data-valor="">Todas</button>' +
-      (f.formato || []).map(function (o) {
-        return '<button class="chip' + (q.formato === o.slug ? ' ativo' : '') + '" data-action="filtro" data-chave="formato" data-valor="' + h(o.slug) + '">' + h(o.valor) + '</button>';
-      }).join('') + '</div>';
-    var selects = ATRIBUTOS.filter(function (a) { return a.chave !== 'formato' && (f[a.chave] || []).length; }).map(function (a) {
+    // Gênero e formato são os filtros principais: ficam como botões, sempre à vista.
+    var ordemGenero = { feminino: 1, masculino: 2, unissex: 3 };
+    var generos = (f.genero || []).slice().sort(function (a, b) { return (ordemGenero[a.slug] || 9) - (ordemGenero[b.slug] || 9); });
+    var chips = linhaChips('genero', 'Para quem', generos, q, 'Todos') + linhaChips('formato', 'Formato', f.formato || [], q, 'Todos');
+    var selects = ATRIBUTOS.filter(function (a) { return a.chave !== 'formato' && a.chave !== 'genero' && (f[a.chave] || []).length; }).map(function (a) {
       return '<label>' + h(a.rotulo) + '<select data-action="filtro" data-chave="' + a.chave + '"><option value="">Todas</option>' +
         (f[a.chave] || []).map(function (o) { return '<option value="' + h(o.slug) + '"' + (q[a.chave] === o.slug ? ' selected' : '') + '>' + h(o.valor) + ' (' + o.total + ')</option>'; }).join('') +
         '</select></label>';
@@ -431,6 +439,7 @@
       ['Quanto tempo demora pra chegar?', 'Até 3 dias úteis na Grande São Paulo e até 5 dias úteis pro resto do Brasil, contados da confirmação do pagamento. O código de rastreio chega no seu e-mail.'],
       ['Como funciona o Leve 2?', 'Levando 2 armações no mesmo pedido, a 2ª sai com ' + l2 + '% de desconto. Levando 3, a 3ª sai com ' + estado.regras.leve3_pct + '%. O desconto aparece sozinho no carrinho.'],
       ['Tem nota fiscal?', 'Sempre. Todo pedido sai com NF-e no seu nome, enviada por e-mail.'],
+      ['E se a armação vier com defeito?', 'Troca e devolução seguem o Código de Defesa do Consumidor: 7 dias de arrependimento com reembolso integral e 90 dias de garantia legal contra defeito de fabricação. É só mandar um e-mail com o número do pedido e uma foto.'],
       ['Quais as formas de pagamento?', 'Pix, com confirmação automática em segundos, ou cartão de crédito, parcelado. O cartão é processado numa página segura da operadora — seus dados não passam pelo nosso site.']
     ];
     return itens.map(function (i) { return '<details><summary>' + h(i[0]) + '</summary><p>' + h(i[1]) + '</p></details>'; }).join('');
@@ -465,7 +474,8 @@
     if (!v) { app.innerHTML = '<div class="container institucional"><h1 class="display">Modelo sem variações.</h1></div>'; return; }
     var imagens = (v.imagens && v.imagens.length ? v.imagens : [v.imagem || p.imagem]).filter(Boolean);
     var esgotado = !(v.estoque > 0);
-    var desc = p.descricao || '';
+    // O cadastro do Bling ainda traz "garantia de 1 ano" em algumas descrições; a loja não promete isso.
+    var desc = String(p.descricao || '').replace(/,?\s*garantia de 1 ano( contra defeito de fabricação)?/gi, '').replace(/\s{2,}/g, ' ').trim();
     titulo(p.nome + (v.cor ? ' ' + v.cor : ''), desc.slice(0, 155));
     jsonLd({ '@context': 'https://schema.org', '@type': 'Product', name: p.nome, sku: v.sku, brand: { '@type': 'Brand', name: p.marca || 'Só Armação' }, description: desc, image: imagens, color: v.cor,
       offers: { '@type': 'Offer', url: CONFIG.site + (v.url || p.url), priceCurrency: 'BRL', price: v.preco, availability: esgotado ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock', itemCondition: 'https://schema.org/NewCondition' } });
@@ -492,7 +502,7 @@
             '<button class="btn btn-laranja btn-bloco" data-action="comprar" data-sku="' + h(v.sku) + '"' + (esgotado ? ' disabled' : '') + '>Comprar agora</button>' +
             '<button class="btn btn-contorno btn-bloco" data-action="adicionar" data-sku="' + h(v.sku) + '"' + (esgotado ? ' disabled' : '') + '>Adicionar ao carrinho</button>' +
           '</div>' +
-          '<ul class="garantias"><li>Nota fiscal em todo pedido</li><li>Garantia de 1 ano contra defeito de fabricação</li><li>Troca grátis em 30 dias</li><li>Pix aprovado na hora · cartão em até 6x</li></ul>' +
+          '<ul class="garantias"><li>Nota fiscal em todo pedido</li><li>Troca grátis em 30 dias</li><li>Troca e devolução conforme o Código de Defesa do Consumidor</li><li>Pix aprovado na hora · cartão em até 6x</li></ul>' +
           '<div><div class="bloco-titulo">Medidas</div><table class="medidas"><tbody>' +
             (med.lente ? '<tr><th>Largura da lente</th><td>' + med.lente + ' mm</td></tr>' : '') +
             (med.ponte ? '<tr><th>Ponte</th><td>' + med.ponte + ' mm</td></tr>' : '') +
@@ -779,7 +789,7 @@
   var PAGINAS = {
     'quem-somos': { t: 'Quem somos', d: 'A Só Armação é uma loja 100% online de armações de óculos de grau, de São Bernardo do Campo/SP.', b: [
       ['', 'A Só Armação nasceu de uma conta que não fechava: a armação que custa pouco pra fabricar chega na ótica custando dez vezes mais. A gente tirou o que encarece — loja física, atravessador, marca de grife — e deixou o que importa: armação de qualidade, preço justo e entrega rápida.'],
-      ['', 'Somos 100% online. Vendemos só a armação — você coloca as lentes do seu grau na ótica ou no laboratório da sua confiança. Preço baixo todo dia, sem promoção de mentira. Nota fiscal em todo pedido, garantia de 1 ano contra defeito de fabricação e troca grátis em 30 dias.'],
+      ['', 'Somos 100% online. Vendemos só a armação — você coloca as lentes do seu grau na ótica ou no laboratório da sua confiança. Preço baixo todo dia, sem promoção de mentira. Nota fiscal em todo pedido e troca grátis em 30 dias, com troca e devolução seguindo o Código de Defesa do Consumidor.'],
       ['', 'Ninguém faz melhor por menos.']] },
     'como-comprar': { t: 'Como comprar', d: 'Passo a passo pra comprar sua armação na Só Armação.', b: [
       ['1 — Escolha a armação', 'Navegue pelos modelos e use os filtros de formato e cor. Todas as medidas (lente, ponte, haste e largura frontal) estão na página de cada modelo — compare com um óculos que já serve bem em você.'],
@@ -800,13 +810,9 @@
     'trocas-e-devolucoes': { t: 'Trocas e devoluções', d: 'Troca grátis em 30 dias e devolução com reembolso integral na Só Armação.', b: [
       ['Troca grátis em 30 dias', 'Não serviu, não gostou ou mudou de ideia? Em até 30 dias corridos depois de receber, você pode trocar por outro modelo ou devolver e receber o dinheiro de volta. A armação precisa estar sem uso, sem lentes de grau instaladas e com a embalagem e os acessórios que vieram com ela.'],
       ['Direito de arrependimento', 'Como manda o Código de Defesa do Consumidor (art. 49), você pode desistir da compra em até 7 dias corridos depois de receber o produto, com reembolso integral, incluindo o frete pago.'],
-      ['Defeito de fabricação', 'Todas as armações têm garantia de 1 ano contra defeito de fabricação (solda, pintura, dobradiça). Veja a página de garantia.'],
+      ['Defeito de fabricação', 'Vale a garantia legal do Código de Defesa do Consumidor: 90 dias a partir do recebimento (art. 26) para defeito de fabricação, como solda, pintura ou dobradiça. Não oferecemos garantia estendida além do que a lei determina.'],
       ['Como pedir', 'Mande um e-mail pra ' + CONFIG.email + ' com o número do pedido, o motivo e, se for defeito, uma foto. Respondemos em até 1 dia útil com a etiqueta de postagem — você não paga o frete da devolução.'],
       ['Reembolso', 'Feito na mesma forma de pagamento assim que a armação chegar e for conferida: no Pix, em até 2 dias úteis; no cartão, o estorno aparece na fatura conforme o prazo da operadora.']] },
-    garantia: { t: 'Garantia', d: 'Garantia de 1 ano contra defeito de fabricação nas armações da Só Armação.', b: [
-      ['1 ano contra defeito de fabricação', 'Solda, pintura, dobradiça e plaquetas. Apresentou defeito no uso normal dentro do prazo? A gente troca por uma nova ou devolve o dinheiro.'],
-      ['O que a garantia não cobre', 'Mau uso: sentar ou pisar em cima, quedas, riscos de uso, contato com produto químico e lentes instaladas fora das medidas da armação.'],
-      ['Como acionar', 'Mande o número do pedido e uma foto do problema pra ' + CONFIG.email + '. Resposta em até 1 dia útil.']] },
     privacidade: { t: 'Política de privacidade', d: 'Como a Só Armação coleta, usa e protege seus dados (LGPD).', b: [
       ['O que coletamos', 'Nome, CPF, e-mail, WhatsApp e endereço — o necessário pra processar o pedido, emitir a nota fiscal e entregar. Também usamos cookies de medição (Google Analytics e Meta) pra entender como a loja é usada.'],
       ['Como usamos', 'Pra entregar seu pedido, emitir nota, calcular frete, confirmar o pagamento e, se você autorizar, avisar sobre novidades. O CPF é guardado só de forma protegida (hash) no nosso banco.'],
@@ -825,7 +831,7 @@
       ['Desconfiou de golpe?', 'A Só Armação nunca pede senha, código de segurança ou Pix fora do checkout do site soarmacao.com.br.']] }
   };
   function viewAjuda() {
-    titulo('Ajuda', 'Central de ajuda da Só Armação: como comprar, entrega, pagamento, trocas e garantia.');
+    titulo('Ajuda', 'Central de ajuda da Só Armação: como comprar, entrega, pagamento, trocas e devoluções.');
     app.innerHTML = '<div class="container institucional"><h1 class="display">Ajuda</h1><p>Tudo o que você precisa saber antes e depois de comprar.</p><div class="ajuda-links">' +
       Object.keys(PAGINAS).map(function (k) { return '<a href="/' + k + '" data-link>' + h(PAGINAS[k].t) + '</a>'; }).join('') + '</div><h2>Perguntas frequentes</h2><div class="faq">' + faq() + '</div></div>';
   }

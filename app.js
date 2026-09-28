@@ -188,13 +188,22 @@
   // Fotos do modelo: a frontal ({SKU}.jpg) é a do card; no detalhe entram também
   // -detalhe.jpg e -lateral.jpg do repositório de fotos (some sozinha se a foto não existir).
   var RE_FOTO_CDN = /^(.*\/so-armacao-fotos@[^/]+\/[^/]+?)\.(jpe?g|png|webp)$/i;
+  // A CDN manda cache de 7 dias pro navegador. Quando uma foto é trocada no repositório
+  // (mesmo nome de arquivo), sobe esta versão pra todo mundo buscar a nova.
+  var FOTOS_VERSAO = '2';
+  function foto(url) {
+    if (!url) return url;
+    return RE_FOTO_CDN.test(url) && url.indexOf('?') < 0 ? url + '?v=' + FOTOS_VERSAO : url;
+  }
+  var TIPOS = { grau: 'De grau', sol: 'De sol', 'grau-e-sol': 'Grau ou sol' };
+  function rotuloTipo(p, v) { return v && v.tipo ? (TIPOS[v.tipo] || '') : (TIPOS[p.tipo] || ''); }
   function fotosDaVariacao(v, p) {
     var base = (v.imagens && v.imagens.length ? v.imagens : [v.imagem || p.imagem]).filter(Boolean);
-    var lista = base.map(function (src, i) { return { src: src, rotulo: i === 0 ? 'Frente' : 'Foto ' + (i + 1) }; });
+    var lista = base.map(function (src, i) { return { src: foto(src), rotulo: i === 0 ? 'Frente' : 'Foto ' + (i + 1) }; });
     var m = base.length === 1 && base[0].match(RE_FOTO_CDN);
     if (m) {
-      lista.push({ src: m[1] + '-detalhe.' + m[2], rotulo: 'Detalhe', opcional: true });
-      lista.push({ src: m[1] + '-lateral.' + m[2], rotulo: 'Lateral', opcional: true });
+      lista.push({ src: foto(m[1] + '-detalhe.' + m[2]), rotulo: 'Detalhe', opcional: true });
+      lista.push({ src: foto(m[1] + '-lateral.' + m[2]), rotulo: 'Lateral', opcional: true });
     }
     return lista;
   }
@@ -320,26 +329,33 @@
   // Componentes
   // ---------------------------------------------------------------------------
   function cardProduto(p) {
-    var v0 = (p.variacoes || []).find(function (v) { return v.estoque > 0; }) || (p.variacoes || [])[0] || {};
+    var tipoFiltro = (query().tipo || '');
+    var vs = (p.variacoes || []).slice();
+    // Filtrando por sol/grau, o card mostra a cor daquele tipo (ex.: a lente marrom, não a cristal).
+    if (tipoFiltro && vs.some(function (v) { return v.tipo === tipoFiltro; })) vs = vs.filter(function (v) { return v.tipo === tipoFiltro; });
+    var v0 = vs.find(function (v) { return v.estoque > 0; }) || vs[0] || {};
     var esgotado = !(p.estoque_total > 0);
     var baixo = !esgotado && p.estoque_total <= 5;
-    var img = p.imagem || v0.imagem;
+    var img = foto(tipoFiltro ? (v0.imagem || p.imagem) : (p.imagem || v0.imagem));
+    var preco = tipoFiltro && v0.preco ? v0.preco : p.preco;
+    var url = tipoFiltro && v0.url ? v0.url : (p.url || '/p/' + p.codigo + '/');
     var cores = (p.cores || []).length;
-    return '<a class="card" href="' + h(p.url || '/p/' + p.codigo + '/') + '" data-link data-codigo="' + h(p.codigo) + '">' +
+    var tipo = tipoFiltro ? TIPOS[tipoFiltro] : (p.tipo && p.tipo !== 'grau' ? TIPOS[p.tipo] : '');
+    return '<a class="card" href="' + h(url) + '" data-link data-codigo="' + h(p.codigo) + '">' +
       (esgotado ? '<span class="badge esgotado">Esgotado</span>' : baixo ? '<span class="badge">' + rotuloEstoque(p.estoque_total) + '</span>' : '') +
       '<div class="card-foto' + (img ? '' : ' sem-foto') + '">' + (img ? '<img src="' + h(img) + '" alt="' + h(p.nome) + '" loading="lazy" width="400" height="400" onerror="this.parentNode.classList.add(\'sem-foto\');this.remove()">' : 'foto em breve') + '</div>' +
       '<div class="card-info">' +
-        '<span class="card-linha">' + h(p.formato || 'Armação') + '</span>' +
+        '<span class="card-linha">' + h(p.formato || 'Armação') + (tipo ? ' · ' + h(tipo) : '') + '</span>' +
         '<span class="card-nome">' + h(p.nome) + '</span>' +
         (cores > 1 ? '<span class="card-cores">' + cores + ' cores</span>' : '') +
-        '<span class="card-preco"><span class="valor">' + h(fmt(p.preco)) + '</span><span class="no-pix">no Pix</span></span>' +
-        '<span class="card-segunda">a 2ª sai por ' + h(fmt(precoSegunda(p.preco))) + '</span>' +
+        '<span class="card-preco"><span class="valor">' + h(fmt(preco)) + '</span><span class="no-pix">no Pix</span></span>' +
+        '<span class="card-segunda">a 2ª sai por ' + h(fmt(precoSegunda(preco))) + '</span>' +
       '</div></a>';
   }
 
   var ORDENACOES = { destaque: 'Destaques', 'menor-preco': 'Menor preço', 'maior-preco': 'Maior preço', 'a-z': 'Nome (A–Z)', novidades: 'Novidades' };
   var ATRIBUTOS = [
-    { chave: 'formato', rotulo: 'Formato' }, { chave: 'cor', rotulo: 'Cor' }, { chave: 'genero', rotulo: 'Gênero' },
+    { chave: 'tipo', rotulo: 'Tipo' }, { chave: 'formato', rotulo: 'Formato' }, { chave: 'cor', rotulo: 'Cor' }, { chave: 'genero', rotulo: 'Gênero' },
     { chave: 'material', rotulo: 'Material' }, { chave: 'ocasiao', rotulo: 'Ocasião' }, { chave: 'tom_pele', rotulo: 'Tom de pele' }
   ];
   function filtrar(produtos, q) {
@@ -349,6 +365,7 @@
       if (!val) return;
       lista = lista.filter(function (p) {
         if (a.chave === 'cor') return (p.variacoes || []).some(function (v) { return (v.cor_slug || slug(v.cor)) === val; });
+        if (a.chave === 'tipo') return (p.tipos || [p.tipo]).indexOf(val) >= 0;
         return slug(p[a.chave]) === val;
       });
     });
@@ -380,8 +397,9 @@
     // Gênero e formato são os filtros principais: ficam como botões, sempre à vista.
     var ordemGenero = { feminino: 1, masculino: 2, unissex: 3 };
     var generos = (f.genero || []).slice().sort(function (a, b) { return (ordemGenero[a.slug] || 9) - (ordemGenero[b.slug] || 9); });
-    var chips = linhaChips('genero', 'Para quem', generos, q, 'Todos') + linhaChips('formato', 'Formato', f.formato || [], q, 'Todos');
-    var selects = ATRIBUTOS.filter(function (a) { return a.chave !== 'formato' && a.chave !== 'genero' && (f[a.chave] || []).length; }).map(function (a) {
+    var tipos = (f.tipo || []).length ? f.tipo : [{ valor: 'De grau', slug: 'grau' }, { valor: 'De sol', slug: 'sol' }];
+    var chips = linhaChips('tipo', 'Tipo', tipos, q, 'Todos') + linhaChips('genero', 'Para quem', generos, q, 'Todos') + linhaChips('formato', 'Formato', f.formato || [], q, 'Todos');
+    var selects = ATRIBUTOS.filter(function (a) { return a.chave !== 'formato' && a.chave !== 'genero' && a.chave !== 'tipo' && (f[a.chave] || []).length; }).map(function (a) {
       return '<label>' + h(a.rotulo) + '<select data-action="filtro" data-chave="' + a.chave + '"><option value="">Todas</option>' +
         (f[a.chave] || []).map(function (o) { return '<option value="' + h(o.slug) + '"' + (q[a.chave] === o.slug ? ' selected' : '') + '>' + h(o.valor) + ' (' + o.total + ')</option>'; }).join('') +
         '</select></label>';
@@ -469,16 +487,23 @@
   }
 
   function viewModelos() {
-    titulo('Todos os modelos', 'Todas as armações da Só Armação: gatinho, redondo, retangular, quadrado e hexagonal. Preço baixo todo dia e troca grátis em até 7 dias úteis.');
     var q = query();
+    var tituloPag = tituloModelos(q);
     var grade = gradeProdutos(q);
     app.innerHTML = '<section class="secao"><div class="container">' +
-      '<div class="secao-titulo"><h1 class="display" style="font-size:clamp(30px,6vw,48px)">Todos os modelos</h1><span class="contagem" id="contagem">' + grade.total + ' modelo' + (grade.total === 1 ? '' : 's') + '</span></div>' +
+      '<div class="secao-titulo"><h1 class="display" style="font-size:clamp(30px,6vw,48px)">' + h(tituloPag) + '</h1><span class="contagem" id="contagem">' + grade.total + ' modelo' + (grade.total === 1 ? '' : 's') + '</span></div>' +
       blocoFiltros(q, grade.total) + '<div id="grade">' + grade.html + '</div></div></section>';
+  }
+  function tituloModelos(q) {
+    var t = q.tipo === 'sol' ? 'Óculos de sol' : q.tipo === 'grau' ? 'Óculos de grau' : 'Todos os modelos';
+    titulo(t, (q.tipo === 'sol' ? 'Óculos de sol da Só Armação' : q.tipo === 'grau' ? 'Armações de óculos de grau da Só Armação' : 'Todas as armações da Só Armação') + ': gatinho, redondo, retangular, quadrado e hexagonal. Preço baixo todo dia e troca grátis em até 7 dias úteis.');
+    return t;
   }
   function atualizarGrade() {
     var q = query();
     var grade = gradeProdutos(q);
+    var h1 = document.querySelector('.secao-titulo h1');
+    if (h1) h1.textContent = tituloModelos(q);
     var g = document.getElementById('grade');
     var c = document.getElementById('contagem');
     var f = document.querySelector('.filtros');
@@ -509,12 +534,12 @@
       '<div class="produto">' +
         galeriaHtml(fotos, p.nome + (v.cor ? ' ' + v.cor : ''), esgotado ? '<span class="badge esgotado">Esgotado</span>' : (v.estoque <= 5 ? '<span class="badge">' + rotuloEstoque(v.estoque) + '</span>' : '')) +
         '<div class="produto-info">' +
-          '<div><span class="card-linha">' + h(p.formato || 'Armação') + (p.marca ? ' · ' + h(p.marca) : '') + '</span><h1 class="display">' + h(p.nome) + '</h1></div>' +
+          '<div><span class="card-linha">' + h(p.formato || 'Armação') + (rotuloTipo(p, v) ? ' · ' + h(rotuloTipo(p, v)) : '') + (p.marca ? ' · ' + h(p.marca) : '') + '</span><h1 class="display">' + h(p.nome) + '</h1></div>' +
           '<div class="preco-bloco"><span class="valor">' + h(fmt(v.preco)) + '<small>no Pix</small></span>' +
             '<span class="segunda">Levando 2, a 2ª sai por ' + h(fmt(precoSegunda(v.preco))) + '</span>' +
             '<span class="parcelas">ou no cartão em até 6x</span></div>' +
           (variacoes.length > 1 ? '<div class="cores"><span class="rotulo">Cor: ' + h(v.cor) + '</span><div class="opcoes">' + variacoes.map(function (x) {
-              return '<a class="cor-opcao' + (x.sku === v.sku ? ' ativo' : '') + (x.estoque > 0 ? '' : ' esgotado') + '" href="' + h(x.url) + '" data-link title="' + h(x.cor) + '">' + (x.imagem ? '<img src="' + h(x.imagem) + '" alt="">' : '') + '<span>' + h(x.cor) + '</span></a>';
+              return '<a class="cor-opcao' + (x.sku === v.sku ? ' ativo' : '') + (x.estoque > 0 ? '' : ' esgotado') + '" href="' + h(x.url) + '" data-link title="' + h(x.cor) + '">' + (x.imagem ? '<img src="' + h(foto(x.imagem)) + '" alt="">' : '') + '<span>' + h(x.cor) + (x.tipo === 'sol' ? ' <small>(sol)</small>' : '') + '</span></a>';
             }).join('') + '</div></div>' : (v.cor ? '<div class="cores"><span class="rotulo">Cor: ' + h(v.cor) + '</span></div>' : '')) +
           (esgotado ? '<p class="estoque-aviso zero">Essa cor está esgotada no momento.</p>' : (v.estoque <= 5 ? '<p class="estoque-aviso">' + rotuloEstoque(v.estoque) + ' em estoque.</p>' : '')) +
           '<div class="acoes">' +
@@ -528,6 +553,7 @@
             (med.haste ? '<tr><th>Haste</th><td>' + med.haste + ' mm</td></tr>' : '') +
             (med.frontal ? '<tr><th>Largura frontal</th><td>' + med.frontal + ' mm</td></tr>' : '') +
             (p.peso_gramas ? '<tr><th>Peso</th><td>' + p.peso_gramas + ' g</td></tr>' : '') +
+            '<tr><th>Tipo</th><td>' + h(v.tipo === 'sol' ? 'Óculos de sol' : 'Óculos de grau (armação, sem as lentes)') + '</td></tr>' +
             (p.material ? '<tr><th>Material</th><td>' + h(p.material) + '</td></tr>' : '') +
             (p.genero ? '<tr><th>Gênero</th><td>' + h(p.genero) + '</td></tr>' : '') +
             '<tr><th>Código</th><td>' + h(v.sku) + '</td></tr>' +
@@ -779,7 +805,7 @@
         '<div class="carrinho"><div>' + progressoLeve(unidades) + '<div class="itens" style="margin-top:10px">' +
           itens.map(function (it) {
             var local = estado.carrinho.find(function (c) { return c.sku === it.sku; }) || {};
-            var img = it.imagem || local.imagem;
+            var img = foto(it.imagem || local.imagem);
             return '<div class="item">' + (img ? '<img src="' + h(img) + '" alt="">' : '<div></div>') + '<div>' +
               '<div class="nome">' + h(it.nome) + '</div><div class="unit">' + h(fmt(it.preco)) + ' cada · <button class="link" data-action="remover" data-sku="' + h(it.sku) + '">remover</button></div>' +
               '<div class="linha"><div class="qtd"><button data-action="qtd" data-sku="' + h(it.sku) + '" data-delta="-1" aria-label="Menos">−</button><span>' + it.qty + '</span><button data-action="qtd" data-sku="' + h(it.sku) + '" data-delta="1" aria-label="Mais">+</button></div><span class="total">' + h(fmt(it.total)) + '</span></div>' +
@@ -868,7 +894,7 @@
             '<p class="ajuda" style="font-size:12px;color:var(--texto-suave)">Ao pagar, você concorda com os <a href="/termos" data-link>termos de uso</a> e a <a href="/privacidade" data-link>política de privacidade</a>.</p>' +
           '</div>' +
           '<div class="painel sticky"><h2 class="display">Seu pedido</h2>' +
-            (r ? '<div class="mini-itens">' + r.itens.map(function (i) { var local = estado.carrinho.find(function (c) { return c.sku === i.sku; }) || {}; return '<div class="mini-item">' + ((i.imagem || local.imagem) ? '<img src="' + h(i.imagem || local.imagem) + '" alt="">' : '<div></div>') + '<span>' + i.qty + 'x ' + h(i.nome) + '</span><strong>' + h(fmt(i.total)) + '</strong></div>'; }).join('') + '</div>' + resumoHtml(r) : '<p class="endereco-resolvido"><span class="spinner"></span> Calculando o pedido…</p>') +
+            (r ? '<div class="mini-itens">' + r.itens.map(function (i) { var local = estado.carrinho.find(function (c) { return c.sku === i.sku; }) || {}; return '<div class="mini-item">' + ((i.imagem || local.imagem) ? '<img src="' + h(foto(i.imagem || local.imagem)) + '" alt="">' : '<div></div>') + '<span>' + i.qty + 'x ' + h(i.nome) + '</span><strong>' + h(fmt(i.total)) + '</strong></div>'; }).join('') + '</div>' + resumoHtml(r) : '<p class="endereco-resolvido"><span class="spinner"></span> Calculando o pedido…</p>') +
           '</div>' +
         '</form></div>';
       if (foco) {

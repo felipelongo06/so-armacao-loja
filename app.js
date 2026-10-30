@@ -13,7 +13,8 @@
     email: 'contato@soarmacao.com.br',
     site: 'https://soarmacao.com.br',
     nome: 'Só Armação',
-    cacheCatalogoMs: 5 * 60 * 1000,
+    cacheCatalogoMs: 5 * 60 * 1000,      // depois disso renova em segundo plano
+    validadeCatalogoMs: 24 * 60 * 60 * 1000, // até aqui o catálogo guardado ainda abre a loja na hora
     pixJanelaSeg: 15 * 60,
     pollingMs: 4000
   };
@@ -155,16 +156,21 @@
     estado.precoMinimo = min;
   }
   function carregarCatalogo(forcar) {
-    var cache = ler('sa_catalogo', null, sessionStorage);
-    if (!forcar && cache && cache.ts && Date.now() - cache.ts < CONFIG.cacheCatalogoMs && cache.dados) {
+    // O catálogo fica guardado no navegador: quem volta à loja vê tudo na hora e a
+    // versão nova chega em segundo plano (preço e estoque são reconferidos no checkout).
+    var cache = ler('sa_catalogo', null);
+    if (!forcar && cache && cache.ts && Date.now() - cache.ts < CONFIG.validadeCatalogoMs && cache.dados) {
       indexar(cache.dados);
       return Promise.resolve(estado.catalogo);
     }
-    return fetch(CONFIG.api + '/api/catalogo', { cache: 'no-store' })
-      .then(function (r) { if (!r.ok) throw new Error('catalogo ' + r.status); return r.json(); })
+    // Primeira visita: o index.html já disparou o download no <head>, antes do app.js chegar.
+    var pedido = !forcar && window.__catalogo;
+    window.__catalogo = null;
+    return (pedido || fetch(CONFIG.api + '/api/catalogo', { cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw new Error('catalogo ' + r.status); return r.json(); }))
       .then(function (dados) {
         indexar(dados);
-        gravar('sa_catalogo', { ts: Date.now(), dados: dados }, sessionStorage);
+        gravar('sa_catalogo', { ts: Date.now(), dados: dados });
         return dados;
       });
   }
@@ -330,7 +336,7 @@
     var precisaCatalogo = rota.nav !== 'ajuda' || !estado.catalogo;
     if (precisaCatalogo && !estado.catalogo) {
       app.innerHTML = '<div class="carregando"><span class="spinner"></span> Carregando o catálogo…</div>';
-      carregarCatalogo().then(function () { rota.view(m); track('page_view', { page: rota.nav }); }).catch(function (e) {
+      carregarCatalogo().then(function () { rota.view(m); track('page_view', { page: rota.nav }); renovarSeVelho(); }).catch(function (e) {
         console.error(e);
         app.innerHTML = '<div class="container institucional"><h1 class="display">Catálogo indisponível</h1><p>Não conseguimos carregar os modelos agora. <button class="link" data-action="recarregar">Tentar de novo</button></p></div>';
       });
@@ -338,8 +344,11 @@
     }
     rota.view(m);
     track('page_view', { page: rota.nav });
-    // renova o catálogo em silêncio se estiver velho
-    var cache = ler('sa_catalogo', null, sessionStorage);
+    renovarSeVelho();
+  }
+  // renova o catálogo em silêncio se estiver velho
+  function renovarSeVelho() {
+    var cache = ler('sa_catalogo', null);
     if (cache && Date.now() - cache.ts > CONFIG.cacheCatalogoMs) carregarCatalogo(true).catch(function () {});
   }
 
@@ -1133,7 +1142,7 @@
     var acao = el.getAttribute('data-action');
     if (acao === 'filtro' && el.tagName === 'BUTTON') { var o = {}; o[el.dataset.chave] = el.dataset.valor; setQuery(o); atualizarGrade(); track('filter_use', { filtro: el.dataset.chave, valor: el.dataset.valor }); }
     else if (acao === 'limpar-filtros') { history.replaceState({}, '', location.pathname); atualizarGrade(); }
-    else if (acao === 'recarregar') { apagar('sa_catalogo', sessionStorage); estado.catalogo = null; rotear(); }
+    else if (acao === 'recarregar') { apagar('sa_catalogo'); estado.catalogo = null; rotear(); }
     else if (acao === 'foto') { galeriaIr(Number(el.dataset.i)); }
     else if (acao === 'galeria') { galeriaIr(galeriaIndice() + Number(el.dataset.dir)); }
     else if (acao === 'lupa') { lupaAbrir(galeriaIndice()); }

@@ -451,7 +451,7 @@
           '<p class="tagline">Ninguém faz melhor por menos.</p>' +
         '</div>' +
         '<div class="hero-selo">Só<br>vem.</div>' +
-        '<div class="hero-foto"><img src="/hero.webp" alt="" width="640" height="1136" fetchpriority="high"></div>' +
+        '<div class="hero-foto"><picture><source media="(min-width: 1024px)" srcset="/hero-desktop.webp" width="1278" height="1230"><img src="/hero.webp" alt="" width="640" height="1136" fetchpriority="high"></picture></div>' +
       '</div></section>' +
       '<div class="fita"></div>' +
       '<section class="beneficios"><div class="container">' +

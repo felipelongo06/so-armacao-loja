@@ -338,13 +338,25 @@
     el.classList.remove('aberto');
     setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 250);
   }
-  // Linha de status no resumo (carrinho e checkout). `d` é a resposta inteira do /api/cotar.
+  // Abaixo do total (carrinho e checkout): quanto o pedido fica na 1ª compra, antes
+  // do CPF. O valor vem do servidor (resumo.previa_primeira), igual ao que será
+  // cobrado depois de confirmado. `d` é a resposta inteira do /api/cotar.
   function nota1aHtml(d, noCheckout) {
     if (!oferta1aAtiva() || !d || !d.resumo) return '';
-    var pc = d.primeira_compra || {};
+    var pc = d.primeira_compra || {}, pv = d.resumo.previa_primeira;
     if (d.resumo.desconto_primeira > 0) return '';
     if (pc.verificado && pc.elegivel === false) return '<p class="nota-1a neutra">O desconto de 1ª compra não se aplica a este pedido.</p>';
-    return '<p class="nota-1a">' + (noCheckout ? '1ª compra? Informe seu CPF e ganhe ' + pct1a() + '% off.' : '1ª compra? ' + pct1a() + '% off aplicado no checkout, ao informar o CPF.') + '</p>';
+    if (!pv) return '';
+    return '<div class="previa-1a"><span>Na 1ª compra, seu total fica</span><strong>' + h(fmt(pv.total)) + '</strong>' +
+      '<small>-' + pv.pct + '% (' + h(fmt(pv.desconto)) + ') · ' + (noCheckout ? 'ativa ao preencher o CPF' : 'ativa ao informar o CPF no checkout') + '</small></div>';
+  }
+  // Balão preso ao campo de CPF no checkout: diz o que ativa o desconto e confirma quando ativou.
+  function bolha1aHtml(d) {
+    if (!oferta1aAtiva()) return '';
+    var r = d && d.resumo, pc = (d && d.primeira_compra) || {};
+    if (r && r.desconto_primeira > 0) return '<div class="bolha-1a ok" role="status">✓ Desconto de 1ª compra ativado: -' + h(fmt(r.desconto_primeira)) + '</div>';
+    if (pc.verificado && pc.elegivel === false) return '';
+    return '<div class="bolha-1a" role="status"><span class="bolha-tag">-' + pct1a() + '%</span> Preencha seu CPF para ativar o desconto de 1ª compra</div>';
   }
 
   // ---------------------------------------------------------------------------
@@ -948,8 +960,8 @@
     if (!f.cep && estado.cep) f.cep = estado.cep;
     f.metodo = f.metodo || 'PIX'; f.parcelas = f.parcelas || 1;
     var erros = {};
-    function campo(nome, rotulo, attrs, ajuda) {
-      return '<div class="campo' + (erros[nome] ? ' invalido' : '') + '"><label for="f-' + nome + '">' + h(rotulo) + '</label><input id="f-' + nome + '" name="' + nome + '" value="' + h(f[nome] || '') + '" ' + attrs + '>' + (erros[nome] ? '<span class="erro-campo">' + h(erros[nome]) + '</span>' : (ajuda ? '<span class="ajuda">' + h(ajuda) + '</span>' : '')) + '</div>';
+    function campo(nome, rotulo, attrs, ajuda, extraHtml) {
+      return '<div class="campo' + (erros[nome] ? ' invalido' : '') + '"><label for="f-' + nome + '">' + h(rotulo) + '</label><input id="f-' + nome + '" name="' + nome + '" value="' + h(f[nome] || '') + '" ' + attrs + '>' + (erros[nome] ? '<span class="erro-campo">' + h(erros[nome]) + '</span>' : (extraHtml || (ajuda ? '<span class="ajuda">' + h(ajuda) + '</span>' : ''))) + '</div>';
     }
     function render(resumo, aviso, enviando) {
       var r = resumo ? resumo.resumo : null;
@@ -962,7 +974,7 @@
           '<div class="painel form-grid">' +
             '<h2 class="display">Seus dados</h2>' +
             campo('nome', 'Nome completo', 'autocomplete="name" required') +
-            '<div class="dupla">' + campo('cpf', 'CPF', 'inputmode="numeric" autocomplete="off" data-mascara="cpf" placeholder="000.000.000-00" required', 'Vai na nota fiscal.') + campo('telefone', 'WhatsApp', 'inputmode="tel" autocomplete="tel" data-mascara="tel" placeholder="(11) 90000-0000" required') + '</div>' +
+            '<div class="dupla">' + campo('cpf', 'CPF', 'inputmode="numeric" autocomplete="off" data-mascara="cpf" placeholder="000.000.000-00" required', 'Vai na nota fiscal.', bolha1aHtml(resumo)) + campo('telefone', 'WhatsApp', 'inputmode="tel" autocomplete="tel" data-mascara="tel" placeholder="(11) 90000-0000" required') + '</div>' +
             campo('email', 'E-mail', 'type="email" inputmode="email" autocomplete="email" required', 'Nota fiscal e rastreio chegam aqui.') +
             '<h2 class="display" style="margin-top:8px">Entrega</h2>' +
             '<div class="dupla">' + campo('cep', 'CEP', 'inputmode="numeric" autocomplete="postal-code" data-mascara="cep" placeholder="00000-000" required') + campo('numero', 'Número', 'autocomplete="address-line2" inputmode="numeric" required') + '</div>' +

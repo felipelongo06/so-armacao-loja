@@ -258,10 +258,13 @@
   }
   function itensPedido() { return estado.carrinho.map(function (i) { return { sku: i.sku, qty: i.qty }; }); }
 
-  function cotar(cep) {
+  // `cliente` ({ cpf, email, telefone }) só no checkout: com CPF válido o servidor
+  // confere o desconto de 1ª compra e já devolve o total com ele.
+  function cotar(cep, cliente) {
     var body = { itens: itensPedido(), frete: estado.freteOpcao };
     var cepLimpo = digitos(cep);
     if (cepLimpo.length === 8) body.cep = cepLimpo;
+    if (cliente && cpfValido(cliente.cpf)) body.cliente = cliente;
     return fetch(CONFIG.api + '/api/cotar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, dados: d }; }); })
       .catch(function (e) { if (e && /fetch|network|json/i.test(String(e.message))) throw new Error('Não foi possível calcular o pedido agora. Confira sua conexão e tente de novo.'); throw e; })
@@ -289,6 +292,59 @@
         '<span class="frete-preco">' + (o.preco === 0 ? 'grátis' : h(fmt(o.preco))) + '</span>' +
         '</button>';
     }).join('') + '</div>';
+  }
+
+  // ---------------------------------------------------------------------------
+  // Desconto de 1ª compra
+  // ---------------------------------------------------------------------------
+  // Sem cadastro: quem decide é o servidor, pelo CPF/e-mail/telefone do checkout.
+  // Aqui só o aviso: aparece uma vez, no 2º modelo aberto (sinal de interesse),
+  // e some pra sempre depois que o navegador fecha uma compra.
+  var POPUP_1A = { desktop: '/popup-1a-compra-desktop.webp', mobile: '/popup-1a-compra-mobile.webp', modelosAteAviso: 2 };
+  function pct1a() { return Number(estado.regras.primeira_compra_pct) || 0; }
+  function jaComprou() { return !!ler('sa_ja_comprou', false); }
+  function oferta1aAtiva() { return pct1a() > 0 && !jaComprou(); }
+  function imagemPopup1a() { return window.matchMedia('(min-width: 820px)').matches ? POPUP_1A.desktop : POPUP_1A.mobile; }
+  function registrarModeloVisto(codigo) {
+    var vistos = ler('sa_vistos', []);
+    if (vistos.indexOf(codigo) < 0) { vistos.push(codigo); gravar('sa_vistos', vistos.slice(-30)); }
+    if (!oferta1aAtiva() || ler('sa_popup_1a', null)) return;
+    // Baixa a arte já no 1º modelo, pra ela estar pronta quando o aviso abrir.
+    if (vistos.length >= POPUP_1A.modelosAteAviso - 1) new Image().src = imagemPopup1a();
+    if (vistos.length >= POPUP_1A.modelosAteAviso) estado.timers.push(setTimeout(abrirPopup1a, 1500));
+  }
+  function abrirPopup1a() {
+    if (document.getElementById('popup-1a')) return;
+    gravar('sa_popup_1a', Date.now());
+    var el = document.createElement('div');
+    el.id = 'popup-1a';
+    el.className = 'popup-1a';
+    el.innerHTML = '<div class="popup-1a-caixa" role="dialog" aria-modal="true" aria-labelledby="popup-1a-titulo">' +
+      '<button type="button" class="popup-1a-fechar" data-action="fechar-1a" aria-label="Fechar">×</button>' +
+      '<picture class="popup-1a-arte"><source media="(min-width: 820px)" srcset="' + POPUP_1A.desktop + '"><img src="' + POPUP_1A.mobile + '" alt="Só Armação: ' + pct1a() + '% off na primeira compra" width="1080" height="810"></picture>' +
+      '<div class="popup-1a-texto">' +
+        '<h2 class="display" id="popup-1a-titulo">' + pct1a() + '% off na sua 1ª compra</h2>' +
+        '<p>Já vai aplicado no checkout: sem cupom e sem cadastro. Vale pra quem ainda não comprou com a gente e soma com o -' + estado.regras.leve2_pct + '% da 2ª armação.</p>' +
+        '<button type="button" class="btn btn-laranja btn-bloco" data-action="fechar-1a">Bora escolher</button>' +
+      '</div></div>';
+    document.body.appendChild(el);
+    requestAnimationFrame(function () { el.classList.add('aberto'); });
+    var btn = el.querySelector('.btn'); if (btn) btn.focus();
+    track('primeira_compra_aviso', {});
+  }
+  function fecharPopup1a() {
+    var el = document.getElementById('popup-1a');
+    if (!el) return;
+    el.classList.remove('aberto');
+    setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 250);
+  }
+  // Linha de status no resumo (carrinho e checkout). `d` é a resposta inteira do /api/cotar.
+  function nota1aHtml(d, noCheckout) {
+    if (!oferta1aAtiva() || !d || !d.resumo) return '';
+    var pc = d.primeira_compra || {};
+    if (d.resumo.desconto_primeira > 0) return '';
+    if (pc.verificado && pc.elegivel === false) return '<p class="nota-1a neutra">O desconto de 1ª compra não se aplica a este pedido.</p>';
+    return '<p class="nota-1a">' + (noCheckout ? '1ª compra? Informe seu CPF e ganhe ' + pct1a() + '% off.' : '1ª compra? ' + pct1a() + '% off aplicado no checkout, ao informar o CPF.') + '</p>';
   }
 
   // ---------------------------------------------------------------------------
@@ -592,6 +648,7 @@
       '</div>' +
       (esgotado ? '' : '<div class="barra-comprar"><div class="container"><button class="btn btn-laranja btn-bloco" data-action="comprar" data-sku="' + h(v.sku) + '">Comprar agora · ' + h(fmt(v.preco)) + '</button></div></div>');
     track('view_item', { value: v.preco, items: [itemGA(p, v, 1)] });
+    registrarModeloVisto(p.codigo);
   }
 
   // Carrossel de fotos do produto: trilho com rolagem por toque (scroll-snap), setas e miniaturas.
@@ -815,6 +872,7 @@
     if (!r) return '';
     return '<div class="resumo-linha"><span>Subtotal (' + r.unidades + ' ' + (r.unidades === 1 ? 'armação' : 'armações') + ')</span><span>' + h(fmt(r.subtotal)) + '</span></div>' +
       (r.desconto > 0 ? '<div class="resumo-linha desconto"><span>2ª armação com -' + (r.desconto_pct || estado.regras.leve2_pct) + '%' + (r.unidades_com_desconto > 1 ? ' (×' + r.unidades_com_desconto + ')' : '') + '</span><span>-' + h(fmt(r.desconto)) + '</span></div>' : '') +
+      (r.desconto_primeira > 0 ? '<div class="resumo-linha desconto"><span>1ª compra -' + r.desconto_primeira_pct + '%</span><span>-' + h(fmt(r.desconto_primeira)) + '</span></div>' : '') +
       '<div class="resumo-linha"><span>Frete' + (r.frete_titulo ? ' · ' + h(r.frete_titulo) : '') + (r.frete_prazo ? ' <small>(' + h(r.frete_prazo) + ')</small>' : '') + '</span><span>' + (r.frete == null ? 'informe o CEP' : (r.frete === 0 ? 'grátis' : h(fmt(r.frete)))) + '</span></div>' +
       '<div class="resumo-linha total"><span>Total</span><span class="num">' + h(fmt(r.total)) + '</span></div>';
   }
@@ -844,7 +902,7 @@
           '<form class="cep-linha" data-action="cep"><div class="campo"><label for="cep">CEP pra calcular o frete</label><input id="cep" name="cep" inputmode="numeric" autocomplete="postal-code" placeholder="00000-000" value="' + h(estado.cep) + '" maxlength="9"></div><button class="btn btn-verde" type="submit" style="align-self:end">OK</button></form>' +
           (resumo && resumo.endereco ? '<p class="endereco-resolvido">' + h([resumo.endereco.logradouro, resumo.endereco.bairro, resumo.endereco.cidade ? resumo.endereco.cidade + '/' + resumo.endereco.uf : ''].filter(Boolean).join(', ')) + '</p>' : '') +
           (carregando ? '' : seletorFreteHtml(resumo ? resumo.resumo : null)) +
-          (carregando ? '<p class="endereco-resolvido"><span class="spinner"></span> Calculando…</p>' : resumoHtml(resumo ? Object.assign({}, resumo.resumo, { endereco: undefined }) : null)) +
+          (carregando ? '<p class="endereco-resolvido"><span class="spinner"></span> Calculando…</p>' : resumoHtml(resumo ? Object.assign({}, resumo.resumo, { endereco: undefined }) : null) + nota1aHtml(resumo ? { resumo: resumo.resumo } : null, false)) +
           '<a class="btn btn-laranja btn-bloco" href="/checkout" data-link' + (erro ? ' aria-disabled="true" style="pointer-events:none;opacity:.55"' : '') + '>Fechar pedido →</a>' +
           '<p class="endereco-resolvido">Pix aprovado na hora · cartão em até 6x · nota fiscal · troca grátis em até 7 dias úteis</p>' +
         '</div></div></div>';
@@ -922,7 +980,7 @@
             '<p class="ajuda" style="font-size:12px;color:var(--texto-suave)">Ao pagar, você concorda com os <a href="/termos" data-link>termos de uso</a> e a <a href="/privacidade" data-link>política de privacidade</a>.</p>' +
           '</div>' +
           '<div class="painel sticky"><h2 class="display">Seu pedido</h2>' +
-            (r ? '<div class="mini-itens">' + r.itens.map(function (i) { var local = estado.carrinho.find(function (c) { return c.sku === i.sku; }) || {}; return '<div class="mini-item">' + ((i.imagem || local.imagem) ? '<img src="' + h(foto(i.imagem || local.imagem)) + '" alt="">' : '<div></div>') + '<span>' + i.qty + 'x ' + h(i.nome) + '</span><strong>' + h(fmt(i.total)) + '</strong></div>'; }).join('') + '</div>' + seletorFreteHtml(r) + resumoHtml(r) : '<p class="endereco-resolvido"><span class="spinner"></span> Calculando o pedido…</p>') +
+            (r ? '<div class="mini-itens">' + r.itens.map(function (i) { var local = estado.carrinho.find(function (c) { return c.sku === i.sku; }) || {}; return '<div class="mini-item">' + ((i.imagem || local.imagem) ? '<img src="' + h(foto(i.imagem || local.imagem)) + '" alt="">' : '<div></div>') + '<span>' + i.qty + 'x ' + h(i.nome) + '</span><strong>' + h(fmt(i.total)) + '</strong></div>'; }).join('') + '</div>' + seletorFreteHtml(r) + resumoHtml(r) + nota1aHtml(resumo, true) : '<p class="endereco-resolvido"><span class="spinner"></span> Calculando o pedido…</p>') +
           '</div>' +
         '</form></div>';
       if (foco) {
@@ -932,9 +990,14 @@
     }
     var ultimaCotacao = null;
     var g = geracao;
+    // Dados que o servidor usa pra conferir a 1ª compra (só vão com CPF válido).
+    function clienteDesconto() { return cpfValido(f.cpf) ? { cpf: f.cpf, email: (f.email || '').trim(), telefone: f.telefone || '' } : null; }
+    var conferido = '';
+    function chave1a() { var c = clienteDesconto(); return c ? digitos(c.cpf) + '|' + c.email.toLowerCase() + '|' + digitos(c.telefone) : ''; }
     function recotar() {
+      conferido = chave1a();
       render(ultimaCotacao, '', false);
-      return cotar(f.cep).then(function (d) { if (g !== geracao) return; ultimaCotacao = d; render(d, '', false); }).catch(function (e) { if (g === geracao) render(null, e.message, false); });
+      return cotar(f.cep, clienteDesconto()).then(function (d) { if (g !== geracao) return; ultimaCotacao = d; render(d, '', false); }).catch(function (e) { if (g === geracao) render(null, e.message, false); });
     }
     recotar().then(function () {
       if (ultimaCotacao) track('begin_checkout', { value: ultimaCotacao.resumo.total, items: ultimaCotacao.resumo.itens.map(function (i) { return { item_id: i.sku, item_name: i.nome, price: i.preco, quantity: i.qty }; }) });
@@ -948,11 +1011,15 @@
       f[el.name] = el.value;
       gravar('sa_checkout', f, sessionStorage);
       if (el.name === 'cep' && digitos(el.value).length === 8 && el.value !== estado.cep) { estado.cep = el.value; gravar('sa_cep', estado.cep); recotar(); }
+      // CPF completo e válido: confere a 1ª compra na hora
+      else if (el.name === 'cpf' && oferta1aAtiva() && cpfValido(el.value) && chave1a() !== conferido) recotar();
     };
     app.onchange = function (e) {
       var el = e.target;
       if (el.name === 'metodo') { f.metodo = el.value; gravar('sa_checkout', f, sessionStorage); render(ultimaCotacao, '', false); }
       if (el.name === 'parcelas') { f.parcelas = Number(el.value); gravar('sa_checkout', f, sessionStorage); }
+      // e-mail/telefone também contam pra 1ª compra: confere de novo ao sair do campo
+      if ((el.name === 'email' || el.name === 'telefone') && oferta1aAtiva() && chave1a() && chave1a() !== conferido) recotar();
     };
     app.onsubmit = function (e) {
       if (!e.target.matches('[data-action="checkout"]')) return;
@@ -1049,6 +1116,7 @@
         : '<div class="carregando"><span class="spinner"></span><span>Confirmando o pagamento do pedido <strong>' + h(pedidoId) + '</strong>…</span></div><p class="endereco-resolvido">No cartão, a operadora pode levar alguns instantes. Esta página atualiza sozinha.</p>') +
         '</div>';
       if (pago) {
+        gravar('sa_ja_comprou', true); fecharPopup1a();
         estado.carrinho = []; salvarCarrinho();
         apagar('sa_pix', sessionStorage); apagar('sa_pedido_pendente', sessionStorage); apagar('sa_checkout', sessionStorage);
         estado.pix = null; estado.form = {};
@@ -1131,6 +1199,8 @@
   // Eventos
   // ---------------------------------------------------------------------------
   document.addEventListener('click', function (e) {
+    // Aviso de 1ª compra: fecha no X, no botão ou clicando fora da caixa
+    if (e.target.id === 'popup-1a' || e.target.closest('[data-action="fechar-1a"]')) { fecharPopup1a(); return; }
     var link = e.target.closest('a[data-link]');
     if (link && !e.metaKey && !e.ctrlKey && !e.shiftKey && link.origin === location.origin) {
       e.preventDefault();
@@ -1195,6 +1265,7 @@
     document.getElementById('lupa').addEventListener('click', function (e) { if (e.target === e.currentTarget) lupaFechar(); });
   })();
   document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && document.getElementById('popup-1a')) { fecharPopup1a(); return; }
     if (!lupa.aberta) return;
     if (e.key === 'Escape') lupaFechar();
     else if (e.key === 'ArrowRight') lupaMostrar(lupa.i + 1);

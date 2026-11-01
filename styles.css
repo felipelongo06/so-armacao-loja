@@ -450,3 +450,31 @@ body.lupa-aberta { overflow: hidden; }
 /* ---------- Barra fixa do produto no celular ---------- */
 .barra-comprar { position: sticky; bottom: 0; background: var(--creme); padding: 10px 0; border-top: 1px solid var(--creme-2); z-index: 40; }
 @media (min-width: 820px) { .barra-comprar { display: none; } }
+
+/* ---------- Aviso de 1ª compra ---------- */
+/* Celular: painel que sobe de baixo (arte 4:3 + texto). Desktop: janela 760x420
+   com a arte à esquerda (720x840 em 2x) e o texto à direita. */
+.popup-1a { position: fixed; inset: 0; z-index: 150; background: rgba(6,48,27,0); display: flex; align-items: flex-end; justify-content: center; transition: background .25s ease; }
+.popup-1a.aberto { background: rgba(6,48,27,.6); }
+.popup-1a-caixa { position: relative; width: 100%; max-height: 92svh; overflow: auto; background: var(--creme); color: var(--verde-escuro); border-radius: 14px 14px 0 0; transform: translateY(100%); transition: transform .3s ease; padding-bottom: env(safe-area-inset-bottom); }
+.popup-1a.aberto .popup-1a-caixa { transform: none; }
+.popup-1a-arte img { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; display: block; }
+.popup-1a-texto { padding: 18px 20px 22px; display: grid; gap: 10px; }
+.popup-1a-texto h2 { font-size: clamp(30px, 8vw, 40px); line-height: .95; }
+.popup-1a-texto p { font-size: 15px; color: var(--texto-suave); }
+.popup-1a-texto .btn { margin-top: 6px; }
+.popup-1a-fechar { position: absolute; top: 10px; right: 10px; z-index: 2; width: 40px; height: 40px; border-radius: 50%; border: 0; background: rgba(6,48,27,.75); color: var(--creme); font-size: 26px; line-height: 1; display: grid; place-items: center; }
+.popup-1a-fechar:hover { background: var(--verde-escuro); }
+@media (min-width: 820px) {
+  .popup-1a { align-items: center; padding: 24px; }
+  .popup-1a-caixa { width: 760px; max-width: 100%; display: grid; grid-template-columns: 360px 1fr; border-radius: 10px; overflow: hidden; transform: translateY(16px) scale(.98); opacity: 0; transition: transform .25s ease, opacity .25s ease; }
+  .popup-1a.aberto .popup-1a-caixa { opacity: 1; }
+  .popup-1a-arte img { aspect-ratio: 6 / 7; height: 100%; }
+  .popup-1a-texto { align-content: center; padding: 36px 36px 36px 32px; gap: 14px; }
+  .popup-1a-texto h2 { font-size: 48px; }
+  .popup-1a-texto p { font-size: 16px; }
+}
+@media (prefers-reduced-motion: reduce) { .popup-1a, .popup-1a-caixa { transition: none; } }
+
+.nota-1a { font-size: 13px; font-weight: 700; color: var(--verde); background: #E4F3EA; border: 1px dashed #9CCFB0; border-radius: var(--raio); padding: 8px 10px; }
+.nota-1a.neutra { color: var(--texto-suave); background: transparent; border-color: var(--creme-2); font-weight: 600; }

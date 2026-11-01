@@ -442,7 +442,7 @@
     var tipo = tipoFiltro ? TIPOS[tipoFiltro] : (p.tipo && p.tipo !== 'grau' ? TIPOS[p.tipo] : '');
     return '<a class="card" href="' + h(url) + '" data-link data-codigo="' + h(p.codigo) + '">' +
       (esgotado ? '<span class="badge esgotado">Esgotado</span>' : baixo ? '<span class="badge">' + rotuloEstoque(p.estoque_total) + '</span>' : '') +
-      '<div class="card-foto' + (img ? '' : ' sem-foto') + '">' + (img ? '<img src="' + h(img) + '" alt="' + h(p.nome) + '" loading="lazy" width="400" height="400" onerror="this.parentNode.classList.add(\'sem-foto\');this.remove()">' : 'foto em breve') + '</div>' +
+      '<div class="card-foto' + (img ? '' : ' sem-foto') + '">' + (img ? '<img src="' + h(img) + '" alt="' + h(p.nome) + '" loading="lazy" width="400" height="400">' : 'foto em breve') + '</div>' +
       '<div class="card-info">' +
         '<span class="card-linha">' + h(p.formato || 'Armação') + (tipo ? ' · ' + h(tipo) : '') + '</span>' +
         '<span class="card-nome">' + h(p.nome) + '</span>' +
@@ -1057,7 +1057,8 @@
           if (g !== geracao) return;
           var d = res.dados || {};
           if (!res.ok) throw new Error(d.erro || 'Não foi possível iniciar o pagamento.');
-          if (d.metodo === 'CREDIT_CARD' && d.checkout_url) {
+          // Só sai do site pra página de pagamento do Asaas, nunca pra outro endereço.
+          if (d.metodo === 'CREDIT_CARD' && d.checkout_url && /^https:\/\/([a-z0-9-]+\.)*asaas\.com\//i.test(d.checkout_url)) {
             gravar('sa_pedido_pendente', { id: d.pedido_id, total: d.resumo && d.resumo.total, metodo: 'CREDIT_CARD', prazo: d.resumo && d.resumo.frete_prazo }, sessionStorage);
             location.href = d.checkout_url; return;
           }
@@ -1299,6 +1300,8 @@
   document.addEventListener('error', function (e) {
     var img = e.target;
     if (!(img instanceof HTMLImageElement)) return;
+    // Foto do card que não carregou: mostra o fundo listrado (antes era um onerror inline, barrado pela CSP)
+    if (img.parentNode && img.parentNode.classList && img.parentNode.classList.contains('card-foto')) { img.parentNode.classList.add('sem-foto'); img.remove(); return; }
     if (img.dataset.opcional && (img.closest('.galeria-slide') || img.closest('.galeria-thumbs'))) galeriaRemover(img.getAttribute('src'));
   }, true);
   document.addEventListener('change', function (e) {

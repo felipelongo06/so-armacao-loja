@@ -1051,7 +1051,8 @@
         frete: estado.freteOpcao,
         tracking: { ga_client_id: gaClientId(), fbp: cookie('_fbp'), fbc: cookie('_fbc'), source_url: location.href }
       };
-      fetch(CONFIG.api + '/api/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      // Checkout passa pela função da própria loja (anti-robô BotID), que repassa pro backend.
+      fetch('/api/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
         .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, dados: d }; }); })
         .then(function (res) {
           if (g !== geracao) return;

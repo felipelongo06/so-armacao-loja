@@ -1,0 +1,9 @@
+{
+  "name": "so-armacao-loja",
+  "private": true,
+  "type": "module",
+  "description": "Loja Só Armação: site estático + função api/checkout.js (anti-robô BotID na frente do backend)",
+  "dependencies": {
+    "botid": "1.5.12"
+  }
+}

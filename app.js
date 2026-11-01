@@ -345,6 +345,7 @@
     if (!oferta1aAtiva() || !d || !d.resumo) return '';
     var pc = d.primeira_compra || {}, pv = d.resumo.previa_primeira;
     if (d.resumo.desconto_primeira > 0) return '';
+    if (pc.verificado && pc.ja_comprou) return '<p class="nota-1a volta">Você já é cliente Só Armação 💚 O desconto de 1ª compra vale só no primeiro pedido.</p>';
     if (pc.verificado && pc.elegivel === false) return '<p class="nota-1a neutra">O desconto de 1ª compra não se aplica a este pedido.</p>';
     if (!pv) return '';
     return '<div class="previa-1a"><span>Na 1ª compra, seu total fica</span><strong>' + h(fmt(pv.total)) + '</strong>' +
@@ -355,6 +356,9 @@
     if (!oferta1aAtiva()) return '';
     var r = d && d.resumo, pc = (d && d.primeira_compra) || {};
     if (r && r.desconto_primeira > 0) return '<div class="bolha-1a ok" role="status">✓ Desconto de 1ª compra ativado: -' + h(fmt(r.desconto_primeira)) + '</div>';
+    // Já comprou (por CPF, e-mail ou WhatsApp): boas-vindas de volta, sem cara de recusa.
+    if (pc.verificado && pc.ja_comprou) return '<div class="bolha-1a volta" role="status">💚 Que bom te ver de novo! Você já comprou com a gente, então o desconto de 1ª compra já foi usado' +
+      (estado.regras.leve2_pct ? ' — mas a 2ª armação continua saindo com -' + estado.regras.leve2_pct + '%.' : '.') + '</div>';
     if (pc.verificado && pc.elegivel === false) return '';
     return '<div class="bolha-1a" role="status"><span class="bolha-tag">-' + pct1a() + '%</span> Preencha seu CPF para ativar o desconto de 1ª compra</div>';
   }

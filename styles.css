@@ -490,3 +490,6 @@ body.lupa-aberta { overflow: hidden; }
 .bolha-1a .bolha-tag { flex: none; background: var(--laranja); color: var(--verde-escuro); font-family: var(--display); font-weight: 400; font-size: 14px; letter-spacing: .5px; padding: 2px 6px; border-radius: 2px; }
 .bolha-1a.ok { background: #E4F3EA; border-color: #9CCFB0; color: var(--verde); }
 .bolha-1a.ok::before { border-color: #9CCFB0; }
+.bolha-1a.volta { background: #E4F3EA; border-color: #9CCFB0; color: var(--verde-escuro); font-weight: 600; }
+.bolha-1a.volta::before { border-color: #9CCFB0; }
+.nota-1a.volta { color: var(--verde-escuro); font-weight: 600; }

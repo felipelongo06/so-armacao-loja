@@ -52,6 +52,14 @@
     var p = cookie('_ga').split('.');
     return p.length >= 4 ? p.slice(-2).join('.') : '';
   }
+  // ID da sessão do GA4 (cookie _ga_<contêiner>). Vai no checkout pro servidor mandar a
+  // compra na MESMA sessão do clique no anúncio — sem isso o GA4 (e a conversão importada
+  // no Google Ads) atribui a venda como "direto". Formatos: GS1.1.<sessão>.… e GS2.1.s<sessão>$o…
+  function gaSessionId() {
+    var partes = cookie('_ga_TMYDVM5TM1').split('.');
+    var m = /^s?(\d+)/.exec(partes[2] || '');
+    return m ? m[1] : '';
+  }
   var toastTimer = null;
   function toast(html, ms) {
     toastEl.innerHTML = html;
@@ -1049,7 +1057,7 @@
         cliente: { nome: f.nome.trim(), cpf: f.cpf, email: f.email.trim(), telefone: f.telefone, cep: f.cep, numero: String(f.numero).trim(), complemento: f.complemento || '' },
         metodo: f.metodo, parcelas: f.metodo === 'CREDIT_CARD' ? (Number(f.parcelas) || 1) : 1,
         frete: estado.freteOpcao,
-        tracking: { ga_client_id: gaClientId(), fbp: cookie('_fbp'), fbc: cookie('_fbc'), source_url: location.href }
+        tracking: { ga_client_id: gaClientId(), ga_session_id: gaSessionId(), fbp: cookie('_fbp'), fbc: cookie('_fbc'), source_url: location.href }
       };
       // Checkout passa pela função da própria loja (anti-robô BotID), que repassa pro backend.
       fetch('/api/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })

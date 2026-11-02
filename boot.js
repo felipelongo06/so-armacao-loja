@@ -15,11 +15,13 @@
     window.__catalogo.catch(function () {});
   })();
 
-  // GA4 (o gtag.js é carregado pelo <script async> do index.html)
+  // GA4 + Google Ads (o gtag.js é carregado pelo <script async> do index.html)
   window.dataLayer = window.dataLayer || [];
   window.gtag = function () { window.dataLayer.push(arguments); };
   window.gtag('js', new Date());
   window.gtag('config', 'G-TMYDVM5TM1', { send_page_view: false });
+  // Google Ads (remarketing e base pras conversões); usa o mesmo gtag.js do GA4
+  window.gtag('config', 'AW-18408434452');
 
   // Meta Pixel
   !function (f, b, e, v, n, t, s) {

@@ -31,8 +31,10 @@ export async function POST(request) {
     // Falha do serviço (OIDC desligado, Vercel fora): não trava venda por isso.
     console.error('[botid] falha ao verificar, seguindo sem:', e.message);
   }
-  const bloquear = process.env.BOTID_MODO === 'bloquear';
-  if (veredito !== 'humano') console.warn('[botid]', { veredito, bloqueado: bloquear && veredito === 'robo' });
+  // Bloqueio SUSPENSO (01/11/2026): com BOTID_MODO=bloquear, um navegador real foi
+  // classificado como robô. Até entender, só registra — nenhum cliente é barrado.
+  const bloquear = false;
+  console.log('[botid]', JSON.stringify({ veredito, modo: process.env.BOTID_MODO || 'observar', ua: (request.headers.get('user-agent') || '').slice(0, 120) }));
   if (bloquear && veredito === 'robo') {
     return json({ erro: 'Não conseguimos confirmar que é você. Recarregue a página e tente de novo.' }, 403, { 'x-botid': veredito });
   }

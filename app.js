@@ -486,6 +486,33 @@
       '</div></a>';
   }
 
+  // Vitrine: um card por COR. Os filtros valem pro modelo (gênero, formato...) e, dentro
+  // do modelo, a cor escolhida e o tipo (sol/grau) escolhem quais cores entram.
+  function coresNaVitrine(p, q) {
+    var vs = (p.variacoes || []).slice().sort(function (a, b) { return (a.ordem || 0) - (b.ordem || 0); });
+    if (q.cor) vs = vs.filter(function (v) { return (v.cor_slug || slug(v.cor)) === q.cor; });
+    if (q.tipo && vs.some(function (v) { return v.tipo === q.tipo; })) vs = vs.filter(function (v) { return v.tipo === q.tipo; });
+    return vs.map(function (v) { return { p: p, v: v }; });
+  }
+  function cardCor(item) {
+    var p = item.p, v = item.v;
+    var esgotado = !(v.estoque > 0);
+    var baixo = !esgotado && v.estoque <= 5;
+    var img = foto(v.imagem || (v.imagens || [])[0] || p.imagem);
+    var tipo = v.tipo && v.tipo !== 'grau' ? TIPOS[v.tipo] : '';
+    var alt = p.nome + (v.cor ? ' — ' + v.cor : '');
+    return '<a class="card" href="' + h(v.url || p.url) + '" data-link data-codigo="' + h(p.codigo) + '" data-sku="' + h(v.sku) + '">' +
+      (esgotado ? '<span class="badge esgotado">Esgotado</span>' : baixo ? '<span class="badge">' + rotuloEstoque(v.estoque) + '</span>' : '') +
+      '<div class="card-foto' + (img ? '' : ' sem-foto') + '">' + (img ? '<img src="' + h(img) + '" alt="' + h(alt) + '" loading="lazy" width="400" height="400">' : 'foto em breve') + '</div>' +
+      '<div class="card-info">' +
+        '<span class="card-linha">' + h(p.formato || 'Armação') + (tipo ? ' · ' + h(tipo) : '') + '</span>' +
+        '<span class="card-nome">' + h(p.nome) + '</span>' +
+        (v.cor ? '<span class="card-cores">' + h(v.cor) + '</span>' : '') +
+        '<span class="card-preco"><span class="valor">' + h(fmt(v.preco)) + '</span><span class="no-pix">no Pix</span></span>' +
+        '<span class="card-segunda">a 2ª sai por ' + h(fmt(precoSegunda(v.preco))) + '</span>' +
+      '</div></a>';
+  }
+
   var ORDENACOES = { destaque: 'Destaques', 'menor-preco': 'Menor preço', 'maior-preco': 'Maior preço', 'a-z': 'Nome (A–Z)', novidades: 'Novidades' };
   var ATRIBUTOS = [
     { chave: 'tipo', rotulo: 'Tipo' }, { chave: 'formato', rotulo: 'Formato' }, { chave: 'cor', rotulo: 'Cor' }, { chave: 'genero', rotulo: 'Gênero' },
@@ -547,8 +574,15 @@
       (ativos ? '<button class="link filtros-limpar" data-action="limpar-filtros">Limpar filtros</button>' : '') + '</div>';
   }
   function gradeProdutos(q) {
-    var lista = filtrar(estado.catalogo.produtos || [], q);
-    return { html: '<div class="grade">' + (lista.length ? lista.map(cardProduto).join('') : '<p class="vazio">Nenhum modelo com esses filtros. <button class="link" data-action="limpar-filtros">Limpar filtros</button></p>') + '</div>', total: lista.length };
+    var modelos = filtrar(estado.catalogo.produtos || [], q);
+    var itens = [];
+    modelos.forEach(function (p) { itens = itens.concat(coresNaVitrine(p, q)); });
+    // Mesma ordem dos modelos; dentro dela, cor esgotada vai pro fim da vitrine.
+    var pos = itens.map(function (_, i) { return i; });
+    pos.sort(function (a, b) { return ((itens[b].v.estoque > 0) - (itens[a].v.estoque > 0)) || (a - b); });
+    itens = pos.map(function (i) { return itens[i]; });
+    var rotulo = modelos.length + ' modelo' + (modelos.length === 1 ? '' : 's') + (itens.length !== modelos.length ? ' · ' + itens.length + ' cores' : '');
+    return { html: '<div class="grade">' + (itens.length ? itens.map(cardCor).join('') : '<p class="vazio">Nenhum modelo com esses filtros. <button class="link" data-action="limpar-filtros">Limpar filtros</button></p>') + '</div>', total: modelos.length, rotulo: rotulo };
   }
 
   // ---------------------------------------------------------------------------
@@ -576,7 +610,7 @@
         beneficio('qualidade', 'A melhor qualidade') + beneficio('preco', 'O menor preço') + beneficio('online', '100% online, 0% vitrine') + beneficio('troca', 'Troca grátis em até 7 dias úteis') +
       '</div></section>' +
       '<section class="secao" id="modelos"><div class="container">' +
-        '<div class="secao-titulo"><h2 class="display">Todos os modelos</h2><span class="contagem" id="contagem">' + grade.total + ' modelo' + (grade.total === 1 ? '' : 's') + '</span></div>' +
+        '<div class="secao-titulo"><h2 class="display">Todos os modelos</h2><span class="contagem" id="contagem">' + h(grade.rotulo) + '</span></div>' +
         blocoFiltros(q, grade.total) + '<div id="grade">' + grade.html + '</div>' +
       '</div></section>' +
       '<section class="leve2"><div class="container">' +
@@ -627,7 +661,7 @@
     var tituloPag = tituloModelos(q);
     var grade = gradeProdutos(q);
     app.innerHTML = '<section class="secao"><div class="container">' +
-      '<div class="secao-titulo"><h1 class="display" style="font-size:clamp(30px,6vw,48px)">' + h(tituloPag) + '</h1><span class="contagem" id="contagem">' + grade.total + ' modelo' + (grade.total === 1 ? '' : 's') + '</span></div>' +
+      '<div class="secao-titulo"><h1 class="display" style="font-size:clamp(30px,6vw,48px)">' + h(tituloPag) + '</h1><span class="contagem" id="contagem">' + h(grade.rotulo) + '</span></div>' +
       blocoFiltros(q, grade.total) + '<div id="grade">' + grade.html + '</div></div></section>';
   }
   function tituloModelos(q) {
@@ -644,7 +678,7 @@
     var c = document.getElementById('contagem');
     var f = document.querySelector('.filtros');
     if (g) g.innerHTML = grade.html;
-    if (c) c.textContent = grade.total + ' modelo' + (grade.total === 1 ? '' : 's');
+    if (c) c.textContent = grade.rotulo;
     if (f) f.outerHTML = blocoFiltros(q, grade.total);
   }
 

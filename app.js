@@ -55,6 +55,15 @@
   // ID da sessão do GA4 (cookie _ga_<contêiner>). Vai no checkout pro servidor mandar a
   // compra na MESMA sessão do clique no anúncio — sem isso o GA4 (e a conversão importada
   // no Google Ads) atribui a venda como "direto". Formatos: GS1.1.<sessão>.… e GS2.1.s<sessão>$o…
+  // Clique do Google Ads guardado na chegada (boot.js). Reserva: cookie _gcl_aw da tag do
+  // Ads ("GCL.<quando>.<gclid>"), caso o clique tenha chegado antes do boot.js existir.
+  function cliqueAds() {
+    var c = ler('sa_ads_clique', null);
+    if (c && c.ts && Date.now() - c.ts < 90 * 864e5) return { gclid: c.gclid || '', gbraid: c.gbraid || '', wbraid: c.wbraid || '', clique_em: c.ts };
+    var aw = cookie('_gcl_aw').split('.');
+    if (aw.length >= 3 && aw[2]) return { gclid: aw.slice(2).join('.'), gbraid: '', wbraid: '', clique_em: Number(aw[1]) * 1000 || null };
+    return null;
+  }
   function gaSessionId() {
     var partes = cookie('_ga_TMYDVM5TM1').split('.');
     var m = /^s?(\d+)/.exec(partes[2] || '');
@@ -1057,7 +1066,7 @@
         cliente: { nome: f.nome.trim(), cpf: f.cpf, email: f.email.trim(), telefone: f.telefone, cep: f.cep, numero: String(f.numero).trim(), complemento: f.complemento || '' },
         metodo: f.metodo, parcelas: f.metodo === 'CREDIT_CARD' ? (Number(f.parcelas) || 1) : 1,
         frete: estado.freteOpcao,
-        tracking: { ga_client_id: gaClientId(), ga_session_id: gaSessionId(), fbp: cookie('_fbp'), fbc: cookie('_fbc'), source_url: location.href }
+        tracking: { ga_client_id: gaClientId(), ga_session_id: gaSessionId(), ads: cliqueAds(), fbp: cookie('_fbp'), fbc: cookie('_fbc'), source_url: location.href }
       };
       // Checkout passa pela função da própria loja (anti-robô BotID), que repassa pro backend.
       fetch('/api/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })

@@ -15,6 +15,17 @@
     window.__catalogo.catch(function () {});
   })();
 
+  // Clique de anúncio do Google: gclid/gbraid/wbraid só vêm na URL da página de CHEGADA.
+  // Guarda já aqui (antes de qualquer navegação) por até 90 dias, a janela de conversão
+  // do Ads; o checkout manda pro backend gravar no pedido. Clique mais novo substitui.
+  (function () {
+    try {
+      var q = new URLSearchParams(location.search), clique = {};
+      ['gclid', 'gbraid', 'wbraid'].forEach(function (k) { var v = q.get(k); if (v && /^[\w.-]{1,200}$/.test(v)) clique[k] = v; });
+      if (clique.gclid || clique.gbraid || clique.wbraid) { clique.ts = Date.now(); localStorage.setItem('sa_ads_clique', JSON.stringify(clique)); }
+    } catch (e) {}
+  })();
+
   // GA4 + Google Ads (o gtag.js é carregado pelo <script async> do index.html)
   window.dataLayer = window.dataLayer || [];
   window.gtag = function () { window.dataLayer.push(arguments); };

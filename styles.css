@@ -493,3 +493,4 @@ body.lupa-aberta { overflow: hidden; }
 .bolha-1a.volta { background: #E4F3EA; border-color: #9CCFB0; color: var(--verde-escuro); font-weight: 600; }
 .bolha-1a.volta::before { border-color: #9CCFB0; }
 .nota-1a.volta { color: var(--verde-escuro); font-weight: 600; }
+.botoes-404 { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }

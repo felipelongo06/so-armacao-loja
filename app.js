@@ -83,6 +83,13 @@
     var c = document.querySelector('link[rel="canonical"]');
     if (c) c.setAttribute('href', CONFIG.site + location.pathname);
   }
+  // "Não indexar" pro Google em páginas que não devem aparecer na busca (modelo que
+  // não existe, carrinho/checkout). Endereço inventado nem chega aqui: a Vercel devolve 404.
+  function naoIndexar(sim) {
+    var m = document.querySelector('meta[name="robots"]');
+    if (sim && !m) { m = document.createElement('meta'); m.name = 'robots'; m.content = 'noindex'; document.head.appendChild(m); }
+    else if (!sim && m) m.remove();
+  }
   function jsonLd(obj) {
     var antigo = document.getElementById('ld-pagina');
     if (antigo) antigo.remove();
@@ -420,6 +427,7 @@
     for (var i = 0; i < rotas.length; i++) { m = caminho.match(rotas[i].re); if (m) { rota = rotas[i]; break; } }
     document.querySelectorAll('.nav a[data-nav]').forEach(function (a) { a.classList.toggle('ativo', !!rota && a.getAttribute('data-nav') === rota.nav); });
     jsonLd(null);
+    naoIndexar(!rota || rota.nav === 'carrinho');
     window.scrollTo(0, 0);
     if (!rota) { titulo('Página não encontrada'); app.innerHTML = '<div class="container institucional"><h1 class="display">Essa página não existe.</h1><p>O endereço pode ter mudado. <a href="/modelos" data-link>Ver todos os modelos →</a></p></div>'; track('page_view', { page: '404' }); return; }
     var precisaCatalogo = rota.nav !== 'ajuda' || !estado.catalogo;
@@ -630,12 +638,12 @@
 
   function viewProduto(m) {
     var achado = produtoPorRota(decodeURIComponent(m[1]));
-    if (!achado) { titulo('Modelo não encontrado'); app.innerHTML = '<div class="container institucional"><h1 class="display">Não achamos esse modelo.</h1><p>Ele pode ter saído de linha. <a href="/modelos" data-link>Ver todos os modelos →</a></p></div>'; return; }
+    if (!achado) { naoIndexar(true); titulo('Modelo não encontrado'); app.innerHTML = '<div class="container institucional"><h1 class="display">Não achamos esse modelo.</h1><p>Ele pode ter saído de linha. <a href="/modelos" data-link>Ver todos os modelos →</a></p></div>'; return; }
     var p = achado.produto;
     var q = query();
     var variacoes = (p.variacoes || []).slice().sort(function (a, b) { return (a.ordem || 0) - (b.ordem || 0); });
     var v = achado.variacao || variacoes.find(function (x) { return q.cor && (x.cor_slug || slug(x.cor)) === q.cor; }) || variacoes.find(function (x) { return x.estoque > 0; }) || variacoes[0];
-    if (!v) { app.innerHTML = '<div class="container institucional"><h1 class="display">Modelo sem variações.</h1></div>'; return; }
+    if (!v) { naoIndexar(true); app.innerHTML = '<div class="container institucional"><h1 class="display">Modelo sem variações.</h1></div>'; return; }
     var fotos = fotosDaVariacao(v, p);
     var imagens = fotos.map(function (f) { return f.src; });
     var esgotado = !(v.estoque > 0);

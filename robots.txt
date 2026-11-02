@@ -1,0 +1,9 @@
+# Só Armação — https://soarmacao.com.br
+User-agent: *
+Disallow: /carrinho
+Disallow: /checkout
+Disallow: /pix
+Disallow: /confirmacao
+Disallow: /api/
+
+Sitemap: https://soarmacao.com.br/sitemap.xml

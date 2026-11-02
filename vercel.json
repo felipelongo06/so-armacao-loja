@@ -1,8 +1,41 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "redirects": [
+    {
+      "source": "/:caminho*",
+      "has": [
+        {
+          "type": "host",
+          "value": "so-armacao-loja.vercel.app"
+        }
+      ],
+      "destination": "https://soarmacao.com.br/:caminho*",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
-      "source": "/((?!api/).*)",
+      "source": "/sitemap.xml",
+      "destination": "/api/sitemap"
+    },
+    {
+      "source": "/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/:pagina(modelos|carrinho|checkout|pix|confirmacao|ajuda|garantia|quem-somos|como-comprar|entrega|pagamento|trocas-e-devolucoes|privacidade|termos|contato)",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/:pagina(modelos|carrinho|checkout|pix|confirmacao|ajuda|garantia|quem-somos|como-comprar|entrega|pagamento|trocas-e-devolucoes|privacidade|termos|contato)/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/p/:codigo",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/p/:codigo/",
       "destination": "/index.html"
     }
   ],

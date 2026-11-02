@@ -1132,6 +1132,27 @@
     }).catch(function () { if (manual && aviso) aviso.innerHTML = '<div class="aviso info">Não deu pra conferir agora. A confirmação continua chegando sozinha.</div>'; return false; });
   }
 
+  // Conversão "Compra" do Google Ads, disparada na tela de pedido confirmado (a venda
+  // acontece no site). transaction_id = número do pedido: o Google descarta repetição,
+  // e a loja ainda marca o pedido no navegador pra não reenviar ao recarregar.
+  // E-mail/telefone vão em user_data (conversões otimizadas): o gtag faz o hash antes de enviar.
+  // Preencha o rótulo da ação de conversão; vazio = desligado.
+  var ADS_CONVERSAO_COMPRA = '';   // ex.: 'AW-18408434452/AbCdEfGh123'
+  function conversaoAdsCompra(pedidoId, total) {
+    if (!ADS_CONVERSAO_COMPRA || !window.gtag || !pedidoId) return;
+    var enviados = ler('sa_ads_conv', []);
+    if (enviados.indexOf(pedidoId) >= 0) return;
+    try {
+      var f = estado.form || {}, tel = digitos(f.telefone);
+      var dados = {};
+      if (f.email) dados.email = String(f.email).trim().toLowerCase();
+      if (tel.length >= 10) dados.phone_number = '+55' + tel;
+      if (dados.email || dados.phone_number) window.gtag('set', 'user_data', dados);
+      window.gtag('event', 'conversion', { send_to: ADS_CONVERSAO_COMPRA, value: Number(total) || 0, currency: 'BRL', transaction_id: pedidoId });
+      gravar('sa_ads_conv', enviados.concat(pedidoId).slice(-20));
+    } catch (e) { /* rastreio nunca derruba a loja */ }
+  }
+
   function viewConfirmacao() {
     titulo('Pedido confirmado');
     var q = query();
@@ -1151,6 +1172,7 @@
         : '<div class="carregando"><span class="spinner"></span><span>Confirmando o pagamento do pedido <strong>' + h(pedidoId) + '</strong>…</span></div><p class="endereco-resolvido">No cartão, a operadora pode levar alguns instantes. Esta página atualiza sozinha.</p>') +
         '</div>';
       if (pago) {
+        conversaoAdsCompra(pedidoId, pendente.total);   // antes de limpar o formulário (e-mail/telefone)
         gravar('sa_ja_comprou', true); fecharPopup1a();
         estado.carrinho = []; salvarCarrinho();
         apagar('sa_pix', sessionStorage); apagar('sa_pedido_pendente', sessionStorage); apagar('sa_checkout', sessionStorage);

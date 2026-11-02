@@ -499,6 +499,8 @@
       lista = lista.filter(function (p) {
         if (a.chave === 'cor') return (p.variacoes || []).some(function (v) { return (v.cor_slug || slug(v.cor)) === val; });
         if (a.chave === 'tipo') return (p.tipos || [p.tipo]).indexOf(val) >= 0;
+        // Armação unissex serve nos dois públicos: Feminino e Masculino também listam os Unissex.
+        if (a.chave === 'genero') { var g = slug(p.genero); return g === val || (g === 'unissex' && (val === 'feminino' || val === 'masculino')); }
         return slug(p[a.chave]) === val;
       });
     });

@@ -408,10 +408,13 @@
     new URLSearchParams(location.search).forEach(function (v, k) { q[k] = v; });
     return q;
   }
-  function setQuery(obj) {
+  // `empilhar`: cria entrada no histórico (o "voltar" do navegador volta a página da vitrine).
+  function setQuery(obj, empilhar) {
     var u = new URL(location.href);
     Object.keys(obj).forEach(function (k) { if (obj[k]) u.searchParams.set(k, obj[k]); else u.searchParams.delete(k); });
-    history.replaceState({}, '', u.pathname + (u.search || ''));
+    // Mudou filtro/ordem/busca: volta pra página 1 da vitrine.
+    if (Object.keys(obj).some(function (k) { return k !== 'pagina'; })) u.searchParams.delete('pagina');
+    history[empilhar ? 'pushState' : 'replaceState']({}, '', u.pathname + (u.search || ''));
   }
   var rotas = [
     { re: /^\/$/, view: viewHome, nav: 'home' },
@@ -582,7 +585,24 @@
     pos.sort(function (a, b) { return ((itens[b].v.estoque > 0) - (itens[a].v.estoque > 0)) || (a - b); });
     itens = pos.map(function (i) { return itens[i]; });
     var rotulo = modelos.length + ' modelo' + (modelos.length === 1 ? '' : 's') + (itens.length !== modelos.length ? ' · ' + itens.length + ' cores' : '');
-    return { html: '<div class="grade">' + (itens.length ? itens.map(cardCor).join('') : '<p class="vazio">Nenhum modelo com esses filtros. <button class="link" data-action="limpar-filtros">Limpar filtros</button></p>') + '</div>', total: modelos.length, rotulo: rotulo };
+    // Paginação: VITRINE_POR_PAGINA cards por página, página atual na URL (?pagina=2).
+    var paginas = Math.max(1, Math.ceil(itens.length / VITRINE_POR_PAGINA));
+    var pagina = Math.min(Math.max(parseInt(q.pagina, 10) || 1, 1), paginas);
+    var daPagina = itens.slice((pagina - 1) * VITRINE_POR_PAGINA, pagina * VITRINE_POR_PAGINA);
+    return { html: '<div class="grade">' + (daPagina.length ? daPagina.map(cardCor).join('') : '<p class="vazio">Nenhum modelo com esses filtros. <button class="link" data-action="limpar-filtros">Limpar filtros</button></p>') + '</div>' + paginacaoHtml(pagina, paginas), total: modelos.length, rotulo: rotulo };
+  }
+  var VITRINE_POR_PAGINA = 20;
+  function paginacaoHtml(pagina, paginas) {
+    if (paginas <= 1) return '';
+    var botao = function (n, rotulo, classe, aria) {
+      var fora = n < 1 || n > paginas;
+      return '<button type="button" class="btn ' + classe + '" data-action="pagina" data-pagina="' + n + '"' + (fora ? ' disabled' : '') + ' aria-label="' + aria + '">' + rotulo + '</button>';
+    };
+    return '<nav class="paginacao" aria-label="Páginas da vitrine">' +
+      botao(pagina - 1, '← Anterior', 'btn-contorno', 'Página anterior') +
+      '<span class="pagina-atual" aria-current="page">Página <strong>' + pagina + '</strong> de <strong>' + paginas + '</strong></span>' +
+      botao(pagina + 1, 'Próxima →', 'btn-verde', 'Próxima página') +
+      '</nav>';
   }
 
   // ---------------------------------------------------------------------------
@@ -1347,6 +1367,14 @@
     if (!el) return;
     var acao = el.getAttribute('data-action');
     if (acao === 'filtro' && el.tagName === 'BUTTON') { var o = {}; o[el.dataset.chave] = el.dataset.valor; setQuery(o); atualizarGrade(); track('filter_use', { filtro: el.dataset.chave, valor: el.dataset.valor }); }
+    else if (acao === 'pagina') {
+      setQuery({ pagina: Number(el.dataset.pagina) > 1 ? el.dataset.pagina : '' }, true);
+      atualizarGrade();
+      // Volta pro começo da vitrine (descontando o cabeçalho fixo).
+      var topo = document.getElementById('contagem') || document.getElementById('grade');
+      if (topo) window.scrollTo({ top: topo.getBoundingClientRect().top + window.scrollY - 90, behavior: 'smooth' });
+      track('vitrine_pagina', { pagina: Number(el.dataset.pagina) });
+    }
     else if (acao === 'limpar-filtros') { history.replaceState({}, '', location.pathname); atualizarGrade(); }
     else if (acao === 'recarregar') { apagar('sa_catalogo'); estado.catalogo = null; rotear(); }
     else if (acao === 'foto') { galeriaIr(Number(el.dataset.i)); }

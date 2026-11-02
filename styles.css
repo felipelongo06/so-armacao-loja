@@ -494,3 +494,15 @@ body.lupa-aberta { overflow: hidden; }
 .bolha-1a.volta::before { border-color: #9CCFB0; }
 .nota-1a.volta { color: var(--verde-escuro); font-weight: 600; }
 .botoes-404 { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+
+/* ---------- Paginação da vitrine ---------- */
+.paginacao { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 24px; flex-wrap: wrap; }
+.paginacao .btn { min-width: 140px; }
+.paginacao .btn[disabled] { visibility: hidden; }
+.pagina-atual { font-size: 15px; color: var(--texto-suave); white-space: nowrap; }
+.pagina-atual strong { color: var(--verde-escuro); }
+@media (max-width: 480px) {
+  .paginacao { gap: 8px; }
+  .paginacao .btn { min-width: 0; flex: 1; padding: 12px 10px; font-size: 16px; }
+  .pagina-atual { order: -1; width: 100%; text-align: center; }
+}

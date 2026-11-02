@@ -1137,7 +1137,7 @@
   // e a loja ainda marca o pedido no navegador pra não reenviar ao recarregar.
   // E-mail/telefone vão em user_data (conversões otimizadas): o gtag faz o hash antes de enviar.
   // Preencha o rótulo da ação de conversão; vazio = desligado.
-  var ADS_CONVERSAO_COMPRA = '';   // ex.: 'AW-18408434452/AbCdEfGh123'
+  var ADS_CONVERSAO_COMPRA = 'AW-18408434452/O6qKCLyHp7AdEJTW6clE';   // ação "Compra (site)"
   function conversaoAdsCompra(pedidoId, total) {
     if (!ADS_CONVERSAO_COMPRA || !window.gtag || !pedidoId) return;
     var enviados = ler('sa_ads_conv', []);

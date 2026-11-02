@@ -50,6 +50,7 @@ export async function POST(request) {
         'Content-Type': 'application/json',
         'x-loja-proxy': process.env.LOJA_PROXY_SECRET || '',
         'x-cliente-ip': ip,
+        'x-botid-veredito': veredito,
         'user-agent': request.headers.get('user-agent') || '',
       },
       body: corpo,

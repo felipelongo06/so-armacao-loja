@@ -172,6 +172,9 @@
     (cat.produtos || []).forEach(function (p) {
       estado.porCodigo[String(p.codigo).toUpperCase()] = p;
       if (p.slug) estado.porCodigo[String(p.slug).toUpperCase()] = p;
+      // endereço de SEO (/p/oculos-ibiza-gatinho-yf8636/) vindo do backend
+      var seg = String(p.url || '').split('/')[2];
+      if (seg) estado.porCodigo[seg.toUpperCase()] = p;
       (p.variacoes || []).forEach(function (v) {
         estado.porSku[String(v.sku).toUpperCase()] = { produto: p, variacao: v };
         if (v.estoque > 0 && v.preco > 0 && (min == null || v.preco < min)) min = v.preco;
@@ -204,6 +207,12 @@
     if (estado.porSku[c]) return estado.porSku[c];
     var s = slug(c).toUpperCase();
     if (estado.porCodigo[s]) return { produto: estado.porCodigo[s], variacao: null };
+    // Nome mudou no Bling depois que o link circulou: acha pelo código no fim do endereço.
+    var lista = (estado.catalogo && estado.catalogo.produtos) || [];
+    for (var i = 0; i < lista.length; i++) {
+      var cod = slug(lista[i].codigo).toUpperCase();
+      if (cod && s.slice(-(cod.length + 1)) === '-' + cod) return { produto: lista[i], variacao: null };
+    }
     return null;
   }
   function precoSegunda(preco) { return preco * (1 - (estado.regras.leve2_pct || 0) / 100); }
@@ -644,6 +653,15 @@
     var variacoes = (p.variacoes || []).slice().sort(function (a, b) { return (a.ordem || 0) - (b.ordem || 0); });
     var v = achado.variacao || variacoes.find(function (x) { return q.cor && (x.cor_slug || slug(x.cor)) === q.cor; }) || variacoes.find(function (x) { return x.estoque > 0; }) || variacoes[0];
     if (!v) { naoIndexar(true); app.innerHTML = '<div class="container institucional"><h1 class="display">Modelo sem variações.</h1></div>'; return; }
+    // Endereço oficial (SEO): /p/YF8636/ ou /p/<SKU>/ antigos viram /p/oculos-ibiza-gatinho-yf8636/
+    // na barra, sem recarregar; a cor vai em ?cor= e o resto da URL (utm, gclid) fica.
+    var oficial = String(p.url || '').split('?')[0];
+    if (oficial && location.pathname !== oficial) {
+      var params = new URLSearchParams(location.search);
+      if (achado.variacao) params.set('cor', v.cor_slug || slug(v.cor));
+      var busca = params.toString();
+      history.replaceState(history.state, '', oficial + (busca ? '?' + busca : '') + location.hash);
+    }
     var fotos = fotosDaVariacao(v, p);
     var imagens = fotos.map(function (f) { return f.src; });
     var esgotado = !(v.estoque > 0);

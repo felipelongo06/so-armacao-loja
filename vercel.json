@@ -15,6 +15,14 @@
   ],
   "rewrites": [
     {
+      "source": "/admin",
+      "destination": "https://api.soarmacao.com.br/admin"
+    },
+    {
+      "source": "/admin/:caminho*",
+      "destination": "https://api.soarmacao.com.br/admin/:caminho*"
+    },
+    {
       "source": "/sitemap.xml",
       "destination": "/api/sitemap"
     },

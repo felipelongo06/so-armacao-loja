@@ -6,5 +6,6 @@ Disallow: /pix
 Disallow: /confirmacao
 Disallow: /api/
 Disallow: /avaliar/
+Disallow: /admin
 
 Sitemap: https://soarmacao.com.br/sitemap.xml

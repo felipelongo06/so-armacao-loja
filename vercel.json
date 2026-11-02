@@ -37,6 +37,10 @@
     {
       "source": "/p/:codigo/",
       "destination": "/index.html"
+    },
+    {
+      "source": "/avaliar/:token",
+      "destination": "/index.html"
     }
   ],
   "headers": [
@@ -53,7 +57,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' https://www.googletagmanager.com https://connect.facebook.net https://www.clarity.ms https://*.clarity.ms https://www.googleadservices.com https://googleads.g.doubleclick.net https://www.google.com; connect-src 'self' https://api.soarmacao.com.br https://*.google-analytics.com https://analytics.google.com https://*.analytics.google.com https://stats.g.doubleclick.net https://www.googletagmanager.com https://www.google.com https://www.google.com.br https://www.facebook.com https://connect.facebook.net https://od-18c216b54e2045bdbb2d2f70bc4834b0.ecs.us-east-2.on.aws https://snofje0za8n8.cloud.run https://*.clarity.ms https://google.com https://www.googleadservices.com https://googleads.g.doubleclick.net https://pagead2.googlesyndication.com https://td.doubleclick.net https://ad.doubleclick.net; img-src 'self' data: https://cdn.jsdelivr.net https://orgbling.s3.amazonaws.com https://www.facebook.com https://*.google-analytics.com https://www.googletagmanager.com https://www.google.com https://www.google.com.br https://stats.g.doubleclick.net https://*.clarity.ms https://c.bing.com https://googleads.g.doubleclick.net https://www.googleadservices.com https://td.doubleclick.net https://google.com https://ad.doubleclick.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; frame-src https://www.facebook.com https://td.doubleclick.net https://www.googletagmanager.com; object-src 'none'; base-uri 'self'; form-action 'self' https://www.facebook.com; frame-ancestors 'none'; upgrade-insecure-requests"
+          "value": "default-src 'self'; script-src 'self' https://www.googletagmanager.com https://connect.facebook.net https://www.clarity.ms https://*.clarity.ms https://www.googleadservices.com https://googleads.g.doubleclick.net https://www.google.com; connect-src 'self' https://api.soarmacao.com.br https://*.google-analytics.com https://analytics.google.com https://*.analytics.google.com https://stats.g.doubleclick.net https://www.googletagmanager.com https://www.google.com https://www.google.com.br https://www.facebook.com https://connect.facebook.net https://od-18c216b54e2045bdbb2d2f70bc4834b0.ecs.us-east-2.on.aws https://snofje0za8n8.cloud.run https://*.clarity.ms https://google.com https://www.googleadservices.com https://googleads.g.doubleclick.net https://pagead2.googlesyndication.com https://td.doubleclick.net https://ad.doubleclick.net https://ilziprrnkabilgewxvqq.supabase.co; img-src 'self' data: https://cdn.jsdelivr.net https://orgbling.s3.amazonaws.com https://www.facebook.com https://*.google-analytics.com https://www.googletagmanager.com https://www.google.com https://www.google.com.br https://stats.g.doubleclick.net https://*.clarity.ms https://c.bing.com https://googleads.g.doubleclick.net https://www.googleadservices.com https://td.doubleclick.net https://google.com https://ad.doubleclick.net https://ilziprrnkabilgewxvqq.supabase.co blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; media-src 'self' blob: https://ilziprrnkabilgewxvqq.supabase.co; font-src 'self' https://fonts.gstatic.com; frame-src https://www.facebook.com https://td.doubleclick.net https://www.googletagmanager.com; object-src 'none'; base-uri 'self'; form-action 'self' https://www.facebook.com; frame-ancestors 'none'; upgrade-insecure-requests"
         },
         {
           "key": "X-Frame-Options",

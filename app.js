@@ -426,6 +426,7 @@
     { re: /^\/confirmacao\/?$/, view: viewConfirmacao, nav: 'carrinho' },
     { re: /^\/ajuda\/?$/, view: viewAjuda, nav: 'ajuda' },
     { re: /^\/garantia\/?$/, view: function () { navegar('/trocas-e-devolucoes', true); }, nav: 'ajuda' },
+    { re: /^\/avaliar\/([A-Za-z0-9_-]{20,64})\/?$/, view: viewAvaliar, nav: 'modelos', semCatalogo: true },
     { re: /^\/(quem-somos|como-comprar|entrega|pagamento|trocas-e-devolucoes|privacidade|termos|contato)\/?$/, view: viewInstitucional, nav: 'ajuda' }
   ];
   var geracao = 0; // muda a cada rota: resposta atrasada de uma tela antiga não sobrescreve a atual
@@ -510,10 +511,135 @@
       '<div class="card-info">' +
         '<span class="card-linha">' + h(p.formato || 'Armação') + (tipo ? ' · ' + h(tipo) : '') + '</span>' +
         '<span class="card-nome">' + h(p.nome) + '</span>' +
+        notaCardHtml(p) +
         (v.cor ? '<span class="card-cores">' + h(v.cor) + '</span>' : '') +
         '<span class="card-preco"><span class="valor">' + h(fmt(v.preco)) + '</span><span class="no-pix">no Pix</span></span>' +
         '<span class="card-segunda">a 2ª sai por ' + h(fmt(precoSegunda(v.preco))) + '</span>' +
       '</div></a>';
+  }
+
+  // ---------------------------------------------------------------------------
+  // Avaliações (só compradores; moderadas; agrupadas por modelo, com a cor comprada)
+  // ---------------------------------------------------------------------------
+  function estrelas(nota) {
+    var n = Math.round(Number(nota) || 0);
+    return '<span class="estrelas" aria-hidden="true">' + '★★★★★'.slice(0, n) + '<span class="apagada">' + '★★★★★'.slice(n) + '</span></span>';
+  }
+  function notaFmt(m) { return String(m).replace('.', ','); }
+  // Nos cards, a nota só aparece com volume mínimo (menos que isso não diz muito).
+  function notaCardHtml(p) {
+    var a = p.avaliacao;
+    if (!a || a.total < 3) return '';
+    return '<span class="card-nota" aria-label="Nota ' + notaFmt(a.media) + ' de 5, ' + a.total + ' avaliações">' + estrelas(a.media) + ' ' + notaFmt(a.media) + ' <small>(' + a.total + ')</small></span>';
+  }
+  function carregarAvaliacoes(p) {
+    var g = geracao;
+    fetch(CONFIG.api + '/api/avaliacoes?modelo=' + encodeURIComponent(p.codigo))
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .catch(function () { return null; })
+      .then(function (d) {
+        var el = document.getElementById('avaliacoes');
+        if (g !== geracao || !el) return;
+        var lista = (d && d.avaliacoes) || [];
+        el.innerHTML = '<div class="secao-titulo"><h2 class="display">Avaliações</h2>' +
+          (lista.length ? '<span class="aval-resumo">' + estrelas(d.media) + ' <strong>' + notaFmt(d.media) + '</strong> de 5 · ' + d.total + ' avaliaç' + (d.total === 1 ? 'ão' : 'ões') + ' de compra verificada</span>' : '') + '</div>' +
+          (lista.length ? '<div class="aval-lista">' + lista.map(function (a) {
+            return '<article class="aval">' +
+              '<div class="aval-topo">' + estrelas(a.nota) + '<span class="aval-quem">' + h(a.nome) + ' <span class="selo-verificada">✓ compra verificada</span></span></div>' +
+              (a.cor ? '<div class="aval-cor">Cor: ' + h(a.cor) + '</div>' : '') +
+              '<p>' + h(a.texto).replace(/\n/g, '<br>') + '</p>' +
+              (a.midias && a.midias.length ? '<div class="aval-midias">' + a.midias.map(function (m) {
+                return m.tipo === 'video'
+                  ? '<video src="' + h(m.url) + '" controls preload="metadata" playsinline></video>'
+                  : '<a href="' + h(m.url) + '" target="_blank" rel="noopener"><img src="' + h(m.url) + '" alt="Foto enviada por ' + h(a.nome) + '" loading="lazy"></a>';
+              }).join('') + '</div>' : '') +
+              '<div class="aval-data">' + h(a.data.split('-').reverse().join('/')) + '</div></article>';
+          }).join('') + '</div>' : '<p class="aval-vazio">Ainda sem avaliações deste modelo. Quem compra recebe um link para avaliar depois da entrega.</p>');
+      });
+  }
+
+  function viewAvaliar(m) {
+    titulo('Avaliar compra');
+    naoIndexar(true);
+    var token = m[1];
+    var g = geracao;
+    var midias = [];   // { caminho, tipo, nome, pronto }
+    app.innerHTML = '<div class="container"><div class="carregando"><span class="spinner"></span> Carregando…</div></div>';
+    fetch(CONFIG.api + '/api/avaliacoes?convite=' + encodeURIComponent(token))
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .catch(function () { return { ok: false, d: { erro: 'Não foi possível abrir agora. Tente de novo em instantes.' } }; })
+      .then(function (res) {
+        if (g !== geracao) return;
+        if (!res.ok) { app.innerHTML = '<div class="container confirmacao"><h1 class="display">Ops.</h1><p>' + h(res.d.erro || 'Link inválido.') + '</p><a class="btn btn-laranja" href="/modelos" data-link>Ver modelos</a></div>'; return; }
+        var c = res.d, L = c.limites || { fotos: 5, videos: 1, textoMin: 20, textoMax: 2000 };
+        app.innerHTML = '<div class="container avaliar">' +
+          '<h1 class="display">Como foi a sua compra?</h1>' +
+          '<div class="avaliar-produto">' + (c.imagem ? '<img src="' + h(foto(c.imagem)) + '" alt="">' : '') + '<div><strong>' + h(c.nome_modelo || 'Sua armação') + '</strong>' + (c.cor ? '<span>' + h(c.cor) + '</span>' : '') + '</div></div>' +
+          '<form class="form-grid painel" data-action="avaliar" novalidate>' +
+            '<div class="campo"><span class="rotulo-nota" id="rotulo-nota">Sua nota</span><div class="nota-escolha" role="radiogroup" aria-labelledby="rotulo-nota">' + [5, 4, 3, 2, 1].map(function (n) { return '<input type="radio" id="nota' + n + '" name="nota" value="' + n + '"><label for="nota' + n + '" title="' + n + ' de 5" aria-label="' + n + ' de 5">★</label>'; }).join('') + '</div></div>' +
+            '<div class="campo"><label for="av-texto">Conte como foi (mínimo ' + L.textoMin + ' caracteres)</label><textarea id="av-texto" name="texto" rows="5" maxlength="' + L.textoMax + '" placeholder="Acabamento, conforto, se ficou bem no rosto, entrega…"></textarea><span class="ajuda" id="av-contador">0 / ' + L.textoMin + '</span></div>' +
+            '<div class="campo"><label for="av-nome">Como quer aparecer</label><input id="av-nome" name="nome" maxlength="40" placeholder="Ex.: Maria S." autocomplete="off"><span class="ajuda">Use o primeiro nome e a inicial do sobrenome.</span></div>' +
+            '<div class="campo"><label for="av-arquivos">Fotos e vídeo (opcional)</label><input id="av-arquivos" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm" multiple><span class="ajuda">Até ' + L.fotos + ' fotos (10 MB cada) e ' + L.videos + ' vídeo (50 MB). Mostre a armação no rosto!</span><div class="av-previas" id="av-previas"></div></div>' +
+            '<div class="isca" aria-hidden="true"><label>Site <input name="site" tabindex="-1" autocomplete="off"></label></div>' +
+            '<label class="aceite"><input type="checkbox" name="aceite"> Autorizo a Só Armação a exibir na loja o nome, o texto e as fotos/vídeo desta avaliação.</label>' +
+            '<div id="av-aviso"></div>' +
+            '<button class="btn btn-laranja btn-bloco" type="submit">Enviar avaliação</button>' +
+          '</form></div>';
+
+        var form = app.querySelector('form[data-action="avaliar"]');
+        var aviso = document.getElementById('av-aviso');
+        var avisar = function (txt, tipo) { aviso.innerHTML = txt ? '<div class="aviso ' + (tipo || 'erro') + '">' + h(txt) + '</div>' : ''; };
+        form.querySelector('#av-texto').addEventListener('input', function (e) { document.getElementById('av-contador').textContent = e.target.value.trim().length + ' / ' + L.textoMin; });
+
+        form.querySelector('#av-arquivos').addEventListener('change', function (e) {
+          Array.prototype.forEach.call(e.target.files, function (arq) {
+            var video = /^video\//.test(arq.type);
+            var qtd = midias.filter(function (x) { return (x.tipo === 'video') === video; }).length;
+            if (video ? qtd >= L.videos : qtd >= L.fotos) { avisar(video ? 'Só 1 vídeo por avaliação.' : 'No máximo ' + L.fotos + ' fotos.'); return; }
+            if (arq.size > (video ? 50 : 10) * 1024 * 1024) { avisar(arq.name + ': arquivo grande demais.'); return; }
+            var item = { nome: arq.name, tipo: video ? 'video' : 'foto', pronto: false, local: URL.createObjectURL(arq) };
+            midias.push(item); desenharPrevias();
+            fetch(CONFIG.api + '/api/avaliacoes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'upload', token: token, arquivo: arq.name }) })
+              .then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.erro || 'Falha no envio.'); return d; }); })
+              .then(function (d) { return fetch(d.url, { method: 'PUT', headers: { 'Content-Type': arq.type || d.contentType }, body: arq }).then(function (r) { if (!r.ok) throw new Error('Falha ao enviar ' + arq.name + '.'); item.caminho = d.caminho; item.pronto = true; }); })
+              .catch(function (err) { item.erro = true; avisar(err.message); })
+              .then(desenharPrevias);
+          });
+          e.target.value = '';
+        });
+        function desenharPrevias() {
+          var box = document.getElementById('av-previas');
+          if (!box) return;
+          box.innerHTML = midias.map(function (x, i) {
+            return '<div class="av-previa' + (x.erro ? ' erro' : x.pronto ? '' : ' subindo') + '">' + (x.tipo === 'video' ? '<video src="' + x.local + '" muted playsinline></video>' : '<img src="' + x.local + '" alt="">') +
+              '<button type="button" data-remover="' + i + '" aria-label="Remover">×</button>' + (x.pronto || x.erro ? '' : '<span>enviando…</span>') + '</div>';
+          }).join('');
+        }
+        document.getElementById('av-previas').addEventListener('click', function (e) {
+          var b = e.target.closest('[data-remover]'); if (!b) return;
+          midias.splice(Number(b.dataset.remover), 1); desenharPrevias();
+        });
+
+        form.addEventListener('submit', function (e) {
+          e.preventDefault();
+          var fd = new FormData(form);
+          var corpo = { acao: 'enviar', token: token, nota: Number(fd.get('nota')), texto: String(fd.get('texto') || ''), nome: String(fd.get('nome') || ''), aceite: !!fd.get('aceite'), site: String(fd.get('site') || ''),
+            midias: midias.filter(function (x) { return x.pronto; }).map(function (x) { return x.caminho; }) };
+          if (!corpo.nota) return avisar('Escolha uma nota de 1 a 5 estrelas.');
+          if (corpo.texto.trim().length < L.textoMin) return avisar('Conte um pouco mais (mínimo de ' + L.textoMin + ' caracteres).');
+          if (corpo.nome.trim().length < 2) return avisar('Informe como quer aparecer.');
+          if (!corpo.aceite) return avisar('Marque a autorização para podermos publicar.');
+          if (midias.some(function (x) { return !x.pronto && !x.erro; })) return avisar('Espere os arquivos terminarem de enviar.');
+          var btn = form.querySelector('button[type="submit"]'); btn.disabled = true; btn.textContent = 'Enviando…';
+          fetch(CONFIG.api + '/api/avaliacoes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) })
+            .then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.erro || 'Não foi possível enviar.'); }); })
+            .then(function () {
+              track('avaliacao_enviada', { nota: corpo.nota, midias: corpo.midias.length });
+              app.innerHTML = '<div class="container confirmacao"><div class="selo-ok">✓</div><h1 class="display">Valeu pela avaliação!</h1><p>Ela passa por uma revisão rápida e logo aparece na página do modelo.</p><a class="btn btn-laranja" href="/modelos" data-link>Ver mais modelos</a></div>';
+            })
+            .catch(function (err) { btn.disabled = false; btn.textContent = 'Enviar avaliação'; avisar(err.message); });
+        });
+      });
   }
 
   var ORDENACOES = { destaque: 'Destaques', 'menor-preco': 'Menor preço', 'maior-preco': 'Maior preço', 'a-z': 'Nome (A–Z)', novidades: 'Novidades' };
@@ -776,11 +902,13 @@
           (desc ? '<div><div class="bloco-titulo">Sobre o modelo</div><p class="descricao">' + h(desc) + '</p></div>' : '') +
         '</div>' +
       '</div>' +
+      '<section class="secao" id="avaliacoes" aria-live="polite"></section>' +
       (relacionados.length ? '<section class="secao"><div class="secao-titulo"><h2 class="display">Combina com</h2></div><div class="grade">' + relacionados.map(cardProduto).join('') + '</div></section>' : '') +
       '</div>' +
       (esgotado ? '' : '<div class="barra-comprar"><div class="container"><button class="btn btn-laranja btn-bloco" data-action="comprar" data-sku="' + h(v.sku) + '">Comprar agora · ' + h(fmt(v.preco)) + '</button></div></div>');
     track('view_item', { value: v.preco, items: [itemGA(p, v, 1)] });
     registrarModeloVisto(p.codigo);
+    carregarAvaliacoes(p);
   }
 
   // Carrossel de fotos do produto: trilho com rolagem por toque (scroll-snap), setas e miniaturas.

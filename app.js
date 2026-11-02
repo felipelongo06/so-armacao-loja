@@ -684,6 +684,22 @@
 
   function viewProduto(m) {
     var achado = produtoPorRota(decodeURIComponent(m[1]));
+    // Não achou: pode ser catálogo ou site desatualizado na aba (aberta antes de uma
+    // atualização). Tenta o catálogo novo; se ainda não achar, recarrega a página uma
+    // vez pra pegar o site mais novo. Só então diz que o modelo não existe.
+    if (!achado && !estado.recatalogado) {
+      estado.recatalogado = true;
+      app.innerHTML = '<div class="carregando"><span class="spinner"></span> Carregando…</div>';
+      carregarCatalogo(true).then(rotear, rotear);
+      return;
+    }
+    if (!achado && !ler('sa_recarregou', false, sessionStorage)) {
+      gravar('sa_recarregou', true, sessionStorage);
+      location.reload();
+      return;
+    }
+    apagar('sa_recarregou', sessionStorage);
+    estado.recatalogado = false;
     if (!achado) { naoIndexar(true); titulo('Modelo não encontrado'); app.innerHTML = '<div class="container institucional"><h1 class="display">Não achamos esse modelo.</h1><p>Ele pode ter saído de linha. <a href="/modelos" data-link>Ver todos os modelos →</a></p></div>'; return; }
     var p = achado.produto;
     var q = query();

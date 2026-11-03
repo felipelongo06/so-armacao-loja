@@ -19,6 +19,9 @@
     pollingMs: 4000,
     // Login (Supabase Auth): chave PÚBLICA do projeto (publishable/anon), feita pra ficar no
     // navegador. Quem protege os dados é o backend, que confere o token a cada chamada.
+    // Login com Google pelo botão oficial (Google Identity Services): a janela do Google
+    // mostra soarmacao.com.br, não o endereço do Supabase. ID público do cliente OAuth.
+    googleClientId: '470502882842-f2n1i7r9a4ddg049lpck0af76o4a5q3k.apps.googleusercontent.com',
     supabaseChave: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlsemlwcnJua2FiaWxnZXd4dnFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkyNTMwNTQsImV4cCI6MjEwNDgyOTA1NH0.5F9BEDWa_mKanKOx_lZt_3McCo-upSpEaWKI0l0nBvs'
   };
 
@@ -1582,7 +1585,8 @@
         '<h1 class="display">' + titulos[modo] + '</h1>' +
         (modo === 'esqueci' ? '<p class="entrar-sub">Digite o e-mail da conta. Se ele estiver cadastrado, enviamos um link pra criar uma senha nova.</p>'
           : '<p class="entrar-sub">Acompanhe seus pedidos, salve favoritos e compre mais rápido. Comprar sem conta continua valendo.</p>' +
-            '<button type="button" class="btn btn-google btn-bloco" data-action="entrar-google">' + G_ICONE + '<span>Continuar com o Google</span></button>' +
+            '<div class="g-botao" id="g-botao"></div>' +
+            '<button type="button" class="btn btn-google btn-bloco" data-action="entrar-google" id="g-reserva" hidden>' + G_ICONE + '<span>Continuar com o Google</span></button>' +
             '<div class="entrar-ou"><span>ou com e-mail</span></div>') +
         '<form class="form-grid" data-action="form-conta" method="post" action="/entrar" novalidate>' +
           (modo === 'criar' ? campo('nome', 'Nome', 'autocomplete="name" required maxlength="80"') : '') +
@@ -1601,7 +1605,8 @@
       '</div></div>';
     }
     render();
-    estado.entrarModo = function (novo) { modo = novo; render(); var el = document.getElementById(modo === 'criar' ? 'c-nome' : 'c-email'); if (el) el.focus(); };
+    botaoGoogle(voltar);
+    estado.entrarModo = function (novo) { modo = novo; render(); if (novo !== 'esqueci') botaoGoogle(voltar); var el = document.getElementById(modo === 'criar' ? 'c-nome' : 'c-email'); if (el) el.focus(); };
     app.oninput = function (e) { if (e.target.name && e.target.name !== 'senha') dados[e.target.name] = e.target.value; };
     app.onsubmit = function (e) {
       if (!e.target.matches('[data-action="form-conta"]')) return;
@@ -1638,6 +1643,41 @@
         });
       }).catch(function (err) { render(h(traduzirErroAuth(err))); });
     };
+  }
+  // Botão oficial do Google: devolve um token assinado pelo Google (com o nosso nonce),
+  // que o Supabase confere e troca pela sessão. Se o script do Google não carregar
+  // (bloqueador, rede), aparece o botão de reserva, que vai pelo redirecionamento.
+  function hexAleatorio() { var a = new Uint8Array(32); crypto.getRandomValues(a); return Array.prototype.map.call(a, function (b) { return ('0' + b.toString(16)).slice(-2); }).join(''); }
+  function sha256Hex(txt) { return crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt)).then(function (buf) { return Array.prototype.map.call(new Uint8Array(buf), function (b) { return ('0' + b.toString(16)).slice(-2); }).join(''); }); }
+  function botaoGoogle(voltar) {
+    var alvo = document.getElementById('g-botao');
+    if (!alvo) return;
+    var g0 = geracao;
+    var reserva = function () { if (g0 !== geracao) return; var b = document.getElementById('g-reserva'); if (b) b.hidden = false; var a = document.getElementById('g-botao'); if (a) a.hidden = true; };
+    if (!CONFIG.googleClientId || !window.crypto || !crypto.subtle) { reserva(); return; }
+    var nonce = hexAleatorio();
+    var gsi = window.google && window.google.accounts ? Promise.resolve() : (estado.gsi || (estado.gsi = carregarScript('https://accounts.google.com/gsi/client')));
+    var prazo = setTimeout(reserva, 5000);
+    Promise.all([gsi, sha256Hex(nonce)]).then(function (r) {
+      clearTimeout(prazo);
+      var a = document.getElementById('g-botao');
+      if (!a || g0 !== geracao || !(window.google && google.accounts && google.accounts.id)) { reserva(); return; }
+      google.accounts.id.initialize({
+        client_id: CONFIG.googleClientId, nonce: r[1], ux_mode: 'popup', context: 'signin', itp_support: true, use_fedcm_for_button: true,
+        callback: function (resp) {
+          if (!resp || !resp.credential) return;
+          app.querySelectorAll('.aviso').forEach(function (x) { x.remove(); });
+          auth().then(function (c) { return c.auth.signInWithIdToken({ provider: 'google', token: resp.credential, nonce: nonce }); }).then(function (res) {
+            if (res.error) throw res.error;
+            track('login', { method: 'google' }); estado.conta = null; atualizarCabecalhoConta();
+            navegar(voltar || '/conta', true);
+          }).catch(function (e) { toast(h(traduzirErroAuth(e)), 5000); botaoGoogle(voltar); });
+        }
+      });
+      a.innerHTML = ''; a.hidden = false;
+      var rb = document.getElementById('g-reserva'); if (rb) rb.hidden = true;   // chegou depois do prazo: volta o oficial
+      google.accounts.id.renderButton(a, { type: 'standard', theme: 'outline', size: 'large', text: 'continue_with', shape: 'rectangular', logo_alignment: 'center', locale: 'pt-BR', width: Math.min(400, Math.max(240, a.clientWidth || 320)) });
+    }).catch(function () { clearTimeout(prazo); reserva(); });
   }
   function entrarComGoogle() {
     var voltar = destinoSeguro(query().voltar);

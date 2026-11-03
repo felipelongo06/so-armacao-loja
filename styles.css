@@ -554,6 +554,8 @@ body.lupa-aberta { overflow: hidden; }
 .entrar-sub { color: var(--texto-suave); font-size: 15px; }
 .btn-google { background: var(--branco); color: #1f1f1f; border-color: #C9C3B4; font-family: var(--texto-font); text-transform: none; letter-spacing: 0; font-weight: 700; font-size: 16px; }
 .btn-google:hover { background: #F8F6F0; }
+.g-botao { min-height: 44px; display: flex; justify-content: center; }
+.g-botao[hidden], .btn-google[hidden] { display: none; }
 .entrar-ou { display: flex; align-items: center; gap: 10px; color: var(--texto-suave); font-size: 13px; }
 .entrar-ou::before, .entrar-ou::after { content: ''; flex: 1; height: 1px; background: var(--creme-2); }
 .entrar-links { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; font-size: 14px; }

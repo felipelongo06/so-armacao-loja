@@ -443,6 +443,7 @@
     limparTimers();
     geracao++;
     app.oninput = app.onchange = app.onsubmit = null;
+    estado.aoSairDoCampo = null;
     var caminho = location.pathname.replace(/\/{2,}/g, '/');
     if (caminho.length > 1 && /\/$/.test(caminho) && !/^\/p\//.test(caminho)) caminho = caminho.replace(/\/$/, '');
     var rota = null, m = null;
@@ -1292,12 +1293,15 @@
     if (logado) carregarConta().then(function (d) {
       if (g !== geracao) return;
       var pf = d.perfil || {}, mudouCep = false;
-      [['nome', pf.nome], ['email', pf.email], ['telefone', pf.telefone && mascara('tel', pf.telefone)], ['cep', pf.cep && mascara('cep', pf.cep)], ['numero', pf.numero], ['complemento', pf.complemento]].forEach(function (x) {
-        if (!f[x[0]] && x[1]) { f[x[0]] = x[1]; if (x[0] === 'cep') mudouCep = true; }
+      var mudouCpf = false;
+      [['nome', pf.nome], ['cpf', pf.cpf && mascara('cpf', pf.cpf)], ['email', pf.email], ['telefone', pf.telefone && mascara('tel', pf.telefone)], ['cep', pf.cep && mascara('cep', pf.cep)], ['numero', pf.numero], ['complemento', pf.complemento]].forEach(function (x) {
+        if (!f[x[0]] && x[1]) { f[x[0]] = x[1]; if (x[0] === 'cep') mudouCep = true; if (x[0] === 'cpf') mudouCpf = true; }
       });
       if (!f.metodo || f.metodo === 'PIX') { var c0 = (d.cartoes || []).find(cepDoCartao); if (c0 && !estado.formTocado) f.metodo = 'SALVO:' + c0.id; }
       gravar('sa_checkout', f, sessionStorage);
-      if (mudouCep) { estado.cep = f.cep; gravar('sa_cep', estado.cep); recotar(); } else render(ultimaCotacao, '', false);
+      if (mudouCep) { estado.cep = f.cep; gravar('sa_cep', estado.cep); }
+      // CEP ou CPF novos mudam frete/1ª compra: recota; senão só redesenha.
+      if (mudouCep || (mudouCpf && oferta1aAtiva())) recotar(); else render(ultimaCotacao, '', false);
     }).catch(function () { /* conta fora do ar: segue como visitante */ });
     recotar().then(function () {
       if (ultimaCotacao) track('begin_checkout', { value: ultimaCotacao.resumo.total, items: ultimaCotacao.resumo.itens.map(function (i) { return { item_id: i.sku, item_name: i.nome, price: i.preco, quantity: i.qty }; }) });
@@ -1314,13 +1318,35 @@
       // CPF completo e válido: confere a 1ª compra na hora
       else if (el.name === 'cpf' && oferta1aAtiva() && cpfValido(el.value) && chave1a() !== conferido) recotar();
     };
+    // Logado: cada campo preenchido já vai pro perfil da conta (próxima compra vem pronta).
+    // O servidor só grava o que for válido; o CPF fica criptografado lá.
+    var CAMPOS_PERFIL = ['nome', 'cpf', 'email', 'telefone', 'cep', 'numero', 'complemento'];
+    var perfilTimer = null, perfilEnviado = '';
+    function salvarPerfilConta() {
+      if (!logado) return;
+      clearTimeout(perfilTimer);
+      perfilTimer = setTimeout(function () {
+        var dados = {};
+        CAMPOS_PERFIL.forEach(function (k) { if (f[k] != null && String(f[k]).trim() !== '') dados[k] = String(f[k]); });
+        if ('complemento' in f) dados.complemento = String(f.complemento || '');
+        var chave = JSON.stringify(dados);
+        if (chave === perfilEnviado) return;
+        perfilEnviado = chave;
+        apiConta('POST', { acao: 'perfil', dados: dados }).then(function () {
+          if (estado.conta && estado.conta.perfil) CAMPOS_PERFIL.forEach(function (k) { if (dados[k] != null) estado.conta.perfil[k] = dados[k]; });
+        }).catch(function () { perfilEnviado = ''; });
+      }, 700);
+    }
+    estado.aoSairDoCampo = function (el) { if (g === geracao && CAMPOS_PERFIL.indexOf(el.name) >= 0) salvarPerfilConta(); };
     app.onchange = function (e) {
       var el = e.target;
       if (el.name === 'metodo') { f.metodo = el.value; estado.formTocado = true; gravar('sa_checkout', f, sessionStorage); render(ultimaCotacao, '', false); }
       if (el.name === 'salvar_cartao') { f.salvar_cartao = el.checked; gravar('sa_checkout', f, sessionStorage); }
       if (el.name === 'parcelas') { f.parcelas = Number(el.value); gravar('sa_checkout', f, sessionStorage); }
       // e-mail/telefone também contam pra 1ª compra: confere de novo ao sair do campo
-      if ((el.name === 'email' || el.name === 'telefone') && oferta1aAtiva() && chave1a() && chave1a() !== conferido) recotar();
+      // (depois de o foco chegar no próximo campo: redesenhar no meio da troca de foco
+      // apagava o campo novo e o que a pessoa começava a digitar nele)
+      if ((el.name === 'email' || el.name === 'telefone') && oferta1aAtiva() && chave1a() && chave1a() !== conferido) setTimeout(function () { if (g === geracao) recotar(); }, 0);
     };
     app.onsubmit = function (e) {
       if (!e.target.matches('[data-action="checkout"]')) return;
@@ -1974,7 +2000,7 @@
     privacidade: { t: 'Política de privacidade', d: 'Como a Só Armação coleta, usa e protege seus dados (LGPD).', b: [
       ['O que coletamos', 'Nome, CPF, e-mail, WhatsApp e endereço — o necessário pra processar o pedido, emitir a nota fiscal e entregar. Também usamos cookies e ferramentas de medição (Google Analytics, Google Ads, Meta e Microsoft Clarity) pra entender como a loja é usada e mostrar nossos anúncios pra quem já visitou o site. O Clarity registra cliques, rolagem e movimentos na página pra gente melhorar o site; o que você digita nos campos fica mascarado e não é gravado.'],
       ['Como usamos', 'Pra entregar seu pedido, emitir nota, calcular frete, confirmar o pagamento, conferir se é a sua primeira compra (pro desconto de 1ª compra, pelo CPF, e-mail e WhatsApp dos pedidos anteriores) e, se você autorizar, avisar sobre novidades. O CPF é guardado só de forma protegida (hash) no nosso banco.'],
-      ['Conta e login', 'Criar conta é opcional. Se você criar, guardamos seu nome, e-mail e senha (protegida, sem que ninguém da loja consiga ler) ou, no login com Google, o nome e o e-mail que o Google informa. Na conta ficam seus pedidos, favoritos e, se você pedir, o cartão salvo: o número do cartão fica com a instituição de pagamento (Asaas) e a gente só vê a bandeira e os 4 últimos números. Quando você está logado, as ferramentas de medição recebem um código interno da sua conta (nunca seu e-mail ou CPF), pra entendermos como o site é usado em diferentes aparelhos. Pra excluir a conta, escreva pra ' + CONFIG.email + '.'],
+      ['Conta e login', 'Criar conta é opcional. Se você criar, guardamos seu nome, e-mail e senha (protegida, sem que ninguém da loja consiga ler) ou, no login com Google, o nome e o e-mail que o Google informa. Na conta ficam seus pedidos, favoritos, os dados de entrega e contato que você preenche no checkout (pra próxima compra vir pronta; o CPF fica guardado criptografado) e, se você pedir, o cartão salvo: o número do cartão fica com a instituição de pagamento (Asaas) e a gente só vê a bandeira e os 4 últimos números. Quando você está logado, as ferramentas de medição recebem um código interno da sua conta (nunca seu e-mail ou CPF), pra entendermos como o site é usado em diferentes aparelhos. Pra excluir a conta, escreva pra ' + CONFIG.email + '.'],
       ['Com quem compartilhamos', 'Só com quem precisa pra operação: a instituição de pagamento (Pix e cartão), a transportadora e o sistema emissor de nota fiscal. Não vendemos seus dados.'],
       ['Seus direitos (LGPD)', 'Você pode pedir acesso, correção ou exclusão dos seus dados a qualquer momento pelo e-mail ' + CONFIG.email + '.']] },
     termos: { t: 'Termos de uso', d: 'Condições de compra na Só Armação.', b: [
@@ -2129,6 +2155,8 @@
       geracao++; viewCarrinho();
     }
   });
+  // Saiu de um campo (o checkout logado usa pra salvar o perfil da conta).
+  document.addEventListener('focusout', function (e) { if (estado.aoSairDoCampo && e.target && e.target.name) estado.aoSairDoCampo(e.target); });
   document.addEventListener('input', function (e) {
     var el = e.target;
     if (el.matches('#cep')) el.value = mascara('cep', el.value);

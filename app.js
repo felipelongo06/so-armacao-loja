@@ -19,7 +19,7 @@
     pollingMs: 4000,
     // Login (Supabase Auth): chave PÚBLICA do projeto (publishable/anon), feita pra ficar no
     // navegador. Quem protege os dados é o backend, que confere o token a cada chamada.
-    supabaseChave: ''
+    supabaseChave: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlsemlwcnJua2FiaWxnZXd4dnFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkyNTMwNTQsImV4cCI6MjEwNDgyOTA1NH0.5F9BEDWa_mKanKOx_lZt_3McCo-upSpEaWKI0l0nBvs'
   };
 
   // ---------------------------------------------------------------------------

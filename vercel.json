@@ -49,6 +49,18 @@
     {
       "source": "/avaliar/:token",
       "destination": "/index.html"
+    },
+    {
+      "source": "/:pagina(entrar|conta)",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/:pagina(entrar|conta)/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/conta/:caminho*",
+      "destination": "/index.html"
     }
   ],
   "headers": [

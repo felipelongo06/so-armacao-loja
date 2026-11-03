@@ -26,6 +26,21 @@
     } catch (e) {}
   })();
 
+  // Login (área do cliente): links de confirmação/recuperação de senha e a volta do
+  // Google trazem um código de uso único na URL. Tira da barra ANTES do GA, Meta e
+  // Clarity lerem o endereço; o app.js pega daqui e troca pela sessão.
+  (function () {
+    try {
+      if (!/^\/conta(\/|$)/.test(location.pathname)) return;
+      var q = new URLSearchParams(location.search), achou = {};
+      ['code', 'token_hash', 'type', 'error_description'].forEach(function (k) { var v = q.get(k); if (v) { achou[k] = v.slice(0, 2000); q.delete(k); } });
+      if (!Object.keys(achou).length) return;
+      sessionStorage.setItem('sa_auth_url', JSON.stringify(achou));
+      var resto = q.toString();
+      history.replaceState(history.state, '', location.pathname + (resto ? '?' + resto : '') + location.hash);
+    } catch (e) {}
+  })();
+
   // GA4 + Google Ads (o gtag.js é carregado pelo <script async> do index.html)
   window.dataLayer = window.dataLayer || [];
   window.gtag = function () { window.dataLayer.push(arguments); };

@@ -51,6 +51,8 @@ export async function POST(request) {
         'x-loja-proxy': process.env.LOJA_PROXY_SECRET || '',
         'x-cliente-ip': ip,
         'x-botid-veredito': veredito,
+        // Cliente logado: o backend confere o token no Supabase (conta e cartão salvo).
+        ...(/^Bearer [\w.-]{20,4096}$/.test(request.headers.get('authorization') || '') ? { authorization: request.headers.get('authorization') } : {}),
         'user-agent': request.headers.get('user-agent') || '',
       },
       body: corpo,

@@ -16,7 +16,10 @@
     cacheCatalogoMs: 5 * 60 * 1000,      // depois disso renova em segundo plano
     validadeCatalogoMs: 24 * 60 * 60 * 1000, // até aqui o catálogo guardado ainda abre a loja na hora
     pixJanelaSeg: 15 * 60,
-    pollingMs: 4000
+    pollingMs: 4000,
+    // Login (Supabase Auth): chave PÚBLICA do projeto (publishable/anon), feita pra ficar no
+    // navegador. Quem protege os dados é o backend, que confere o token a cada chamada.
+    supabaseChave: ''
   };
 
   // ---------------------------------------------------------------------------
@@ -427,6 +430,9 @@
     { re: /^\/ajuda\/?$/, view: viewAjuda, nav: 'ajuda' },
     { re: /^\/garantia\/?$/, view: function () { navegar('/trocas-e-devolucoes', true); }, nav: 'ajuda' },
     { re: /^\/avaliar\/([A-Za-z0-9_-]{20,64})\/?$/, view: viewAvaliar, nav: 'modelos', semCatalogo: true },
+    { re: /^\/entrar\/?$/, view: viewEntrar, nav: 'conta' },
+    { re: /^\/conta\/confirmar\/?$/, view: viewConfirmarConta, nav: 'conta' },
+    { re: /^\/conta(?:\/(compras|favoritos|avaliacoes|pagamentos))?(?:\/(SA-[A-Z0-9]+-[A-Z0-9]{4}))?\/?$/, view: viewConta, nav: 'conta' },
     { re: /^\/(quem-somos|como-comprar|entrega|pagamento|trocas-e-devolucoes|privacidade|termos|contato)\/?$/, view: viewInstitucional, nav: 'ajuda' }
   ];
   var geracao = 0; // muda a cada rota: resposta atrasada de uma tela antiga não sobrescreve a atual
@@ -440,7 +446,7 @@
     for (var i = 0; i < rotas.length; i++) { m = caminho.match(rotas[i].re); if (m) { rota = rotas[i]; break; } }
     document.querySelectorAll('.nav a[data-nav]').forEach(function (a) { a.classList.toggle('ativo', !!rota && a.getAttribute('data-nav') === rota.nav); });
     jsonLd(null);
-    naoIndexar(!rota || rota.nav === 'carrinho');
+    naoIndexar(!rota || rota.nav === 'carrinho' || rota.nav === 'conta');
     window.scrollTo(0, 0);
     if (!rota) { titulo('Página não encontrada'); app.innerHTML = '<div class="container institucional"><h1 class="display">Essa página não existe.</h1><p>O endereço pode ter mudado. <a href="/modelos" data-link>Ver todos os modelos →</a></p></div>'; track('page_view', { page: '404' }); return; }
     var precisaCatalogo = rota.nav !== 'ajuda' || !estado.catalogo;
@@ -886,6 +892,7 @@
           '<div class="acoes">' +
             '<button class="btn btn-laranja btn-bloco" data-action="comprar" data-sku="' + h(v.sku) + '"' + (esgotado ? ' disabled' : '') + '>Comprar agora</button>' +
             '<button class="btn btn-contorno btn-bloco" data-action="adicionar" data-sku="' + h(v.sku) + '"' + (esgotado ? ' disabled' : '') + '>Adicionar ao carrinho</button>' +
+            '<button type="button" class="btn-favorito" data-action="favoritar" data-codigo="' + h(p.codigo) + '" aria-pressed="false"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 20s-7-4.4-9-9a5 5 0 0 1 9-3 5 5 0 0 1 9 3c-2 4.6-9 9-9 9z"/></svg><span>Favoritar</span></button>' +
           '</div>' +
           '<ul class="garantias"><li>Nota fiscal em todo pedido</li><li>Troca grátis em até 7 dias úteis (arrependimento)</li><li>Depois, troca só por defeito de fabricação, conforme o Código de Defesa do Consumidor</li><li>Pix aprovado na hora · cartão em até 6x</li></ul>' +
           '<div><div class="bloco-titulo">Medidas</div><table class="medidas"><tbody>' +
@@ -909,6 +916,7 @@
     track('view_item', { value: v.preco, items: [itemGA(p, v, 1)] });
     registrarModeloVisto(p.codigo);
     carregarAvaliacoes(p);
+    conferirFavorito(p.codigo);
   }
 
   // Carrossel de fotos do produto: trilho com rolagem por toque (scroll-snap), setas e miniaturas.
@@ -1208,8 +1216,17 @@
     if (!f.cep && estado.cep) f.cep = estado.cep;
     f.metodo = f.metodo || 'PIX'; f.parcelas = f.parcelas || 1;
     var erros = {};
+    var logado = !!sessaoLocal();
+    // Cartões salvos da conta (o valor do rádio é "SALVO:<id>"; o token nunca vem pro navegador).
+    function cartoesSalvos() { return logado && estado.conta ? (estado.conta.cartoes || []) : []; }
+    function cartaoEscolhido() { var m = /^SALVO:(\d+)$/.exec(f.metodo || ''); return m ? cartoesSalvos().find(function (c) { return String(c.id) === m[1]; }) : null; }
+    function cepDoCartao(c) { var cep = mascara('cep', f.cep || ''); return (c.ceps || []).indexOf(cep) >= 0; }
+    if (/^SALVO:/.test(f.metodo) && !logado) f.metodo = 'CREDIT_CARD';
     function campo(nome, rotulo, attrs, ajuda, extraHtml) {
       return '<div class="campo' + (erros[nome] ? ' invalido' : '') + '"><label for="f-' + nome + '">' + h(rotulo) + '</label><input id="f-' + nome + '" name="' + nome + '" value="' + h(f[nome] || '') + '" ' + attrs + '>' + (erros[nome] ? '<span class="erro-campo">' + h(erros[nome]) + '</span>' : (extraHtml || (ajuda ? '<span class="ajuda">' + h(ajuda) + '</span>' : ''))) + '</div>';
+    }
+    function parcelasHtml(r, operadora) {
+      return '<div class="campo" style="margin-top:8px" id="bloco-parcelas"><label for="f-parcelas">Parcelas</label><select id="f-parcelas" name="parcelas">' + [1, 2, 3, 4, 5, 6].map(function (n) { return '<option value="' + n + '"' + (Number(f.parcelas) === n ? ' selected' : '') + '>' + n + 'x' + (r ? ' de ' + fmt(r.total / n) : '') + '</option>'; }).join('') + '</select>' + (operadora ? '<span class="ajuda">Valor final das parcelas confirmado na página da operadora.</span>' : '') + '</div>';
     }
     function render(resumo, aviso, enviando) {
       var r = resumo ? resumo.resumo : null;
@@ -1221,6 +1238,8 @@
         '<form class="checkout" data-action="checkout" novalidate>' +
           '<div class="painel form-grid">' +
             '<h2 class="display">Seus dados</h2>' +
+            (logado ? '<p class="checkout-conta">Comprando como <strong>' + h((sessaoLocal().user || {}).email || '') + '</strong> · <a href="/conta" data-link>Minha conta</a></p>'
+              : '<p class="checkout-conta">Já tem conta? <a href="/entrar?voltar=%2Fcheckout" data-link>Entrar</a> preenche seus dados e guarda o cartão (opcional).</p>') +
             campo('nome', 'Nome completo', 'autocomplete="name" required') +
             '<div class="dupla">' + campo('cpf', 'CPF', 'inputmode="numeric" autocomplete="off" data-mascara="cpf" placeholder="000.000.000-00" required', 'Vai na nota fiscal.', bolha1aHtml(resumo)) + campo('telefone', 'WhatsApp', 'inputmode="tel" autocomplete="tel" data-mascara="tel" placeholder="(11) 90000-0000" required') + '</div>' +
             campo('email', 'E-mail', 'type="email" inputmode="email" autocomplete="email" required', 'Nota fiscal e rastreio chegam aqui.') +
@@ -1231,12 +1250,19 @@
             '<h2 class="display" style="margin-top:8px">Pagamento</h2>' +
             '<div class="pagamento-opcoes">' +
               '<label class="pag-opcao' + (f.metodo === 'PIX' ? ' ativo' : '') + '"><input type="radio" name="metodo" value="PIX"' + (f.metodo === 'PIX' ? ' checked' : '') + '><div><strong>Pix <span class="recomendado">Na hora</span></strong><span>QR Code ou copia-e-cola. O pedido confirma sozinho em segundos.</span></div></label>' +
+              cartoesSalvos().map(function (c) {
+                var valor = 'SALVO:' + c.id, ativo = f.metodo === valor, serve = cepDoCartao(c);
+                return '<label class="pag-opcao' + (ativo ? ' ativo' : '') + (serve ? '' : ' indisponivel') + '"><input type="radio" name="metodo" value="' + valor + '"' + (ativo ? ' checked' : '') + (serve ? '' : ' disabled') + '><div><strong>' + h(c.bandeira ? c.bandeira.charAt(0) + c.bandeira.slice(1).toLowerCase() : 'Cartão') + ' final ' + h(c.final || '') + ' <span class="recomendado">1 clique</span></strong>' +
+                  '<span>' + (serve ? 'Cartão salvo na sua conta. Paga aqui mesmo, sem digitar nada.' : 'Pra entregar neste CEP, use “Cartão de crédito” abaixo: endereço novo pede o cartão na página segura.') + '</span>' +
+                  (ativo ? parcelasHtml(r, false) : '') + '</div></label>';
+              }).join('') +
               '<label class="pag-opcao' + (f.metodo === 'CREDIT_CARD' ? ' ativo' : '') + '"><input type="radio" name="metodo" value="CREDIT_CARD"' + (f.metodo === 'CREDIT_CARD' ? ' checked' : '') + '><div><strong>Cartão de crédito</strong><span>Pagamento numa página segura da operadora. Parcele em até 6x.</span>' +
-                '<div class="campo" style="margin-top:8px' + (f.metodo === 'CREDIT_CARD' ? '' : ';display:none') + '" id="bloco-parcelas"><label for="f-parcelas">Parcelas</label><select id="f-parcelas" name="parcelas">' + [1, 2, 3, 4, 5, 6].map(function (n) { return '<option value="' + n + '"' + (Number(f.parcelas) === n ? ' selected' : '') + '>' + n + 'x' + (r ? ' de ' + fmt(r.total / n) : '') + '</option>'; }).join('') + '</select><span class="ajuda">Valor final das parcelas confirmado na página da operadora.</span></div>' +
+                (f.metodo === 'CREDIT_CARD' ? parcelasHtml(r, true) : '') +
               '</div></label>' +
             '</div>' +
+            (f.metodo === 'CREDIT_CARD' && logado ? '<label class="salvar-cartao"><input type="checkbox" name="salvar_cartao"' + (f.salvar_cartao !== false ? ' checked' : '') + '><span>Salvar este cartão para as próximas compras <small>O cartão fica guardado com o Asaas; a gente só vê a bandeira e o final.</small></span></label>' : '') +
             (aviso ? '<div class="aviso erro">' + h(aviso) + '</div>' : '') +
-            '<button class="btn btn-laranja btn-bloco" type="submit"' + (enviando || !r ? ' disabled' : '') + '>' + (enviando ? 'Gerando pagamento…' : (f.metodo === 'CREDIT_CARD' ? 'Pagar no cartão' : 'Pagar no Pix')) + (r ? ' · ' + h(fmt(r.total)) : '') + '</button>' +
+            '<button class="btn btn-laranja btn-bloco" type="submit"' + (enviando || !r ? ' disabled' : '') + '>' + (enviando ? (cartaoEscolhido() ? 'Pagando…' : 'Gerando pagamento…') : (cartaoEscolhido() ? 'Pagar com final ' + h(cartaoEscolhido().final || '') : f.metodo === 'CREDIT_CARD' ? 'Pagar no cartão' : 'Pagar no Pix')) + (r ? ' · ' + h(fmt(r.total)) : '') + '</button>' +
             '<p class="ajuda" style="font-size:12px;color:var(--texto-suave)">Ao pagar, você concorda com os <a href="/termos" data-link>termos de uso</a> e a <a href="/privacidade" data-link>política de privacidade</a>.</p>' +
           '</div>' +
           '<div class="painel sticky"><h2 class="display">Seu pedido</h2>' +
@@ -1259,6 +1285,17 @@
       render(ultimaCotacao, '', false);
       return cotar(f.cep, clienteDesconto()).then(function (d) { if (g !== geracao) return; ultimaCotacao = d; render(d, '', false); }).catch(function (e) { if (g === geracao) render(null, e.message, false); });
     }
+    // Logado: preenche o que estiver vazio com os dados do último pedido e mostra os cartões salvos.
+    if (logado) carregarConta().then(function (d) {
+      if (g !== geracao) return;
+      var pf = d.perfil || {}, mudouCep = false;
+      [['nome', pf.nome], ['email', pf.email], ['telefone', pf.telefone && mascara('tel', pf.telefone)], ['cep', pf.cep && mascara('cep', pf.cep)], ['numero', pf.numero], ['complemento', pf.complemento]].forEach(function (x) {
+        if (!f[x[0]] && x[1]) { f[x[0]] = x[1]; if (x[0] === 'cep') mudouCep = true; }
+      });
+      if (!f.metodo || f.metodo === 'PIX') { var c0 = (d.cartoes || []).find(cepDoCartao); if (c0 && !estado.formTocado) f.metodo = 'SALVO:' + c0.id; }
+      gravar('sa_checkout', f, sessionStorage);
+      if (mudouCep) { estado.cep = f.cep; gravar('sa_cep', estado.cep); recotar(); } else render(ultimaCotacao, '', false);
+    }).catch(function () { /* conta fora do ar: segue como visitante */ });
     recotar().then(function () {
       if (ultimaCotacao) track('begin_checkout', { value: ultimaCotacao.resumo.total, items: ultimaCotacao.resumo.itens.map(function (i) { return { item_id: i.sku, item_name: i.nome, price: i.preco, quantity: i.qty }; }) });
     });
@@ -1266,7 +1303,7 @@
     // guarda o formulário enquanto digita (sobrevive a recarregar a página)
     app.oninput = function (e) {
       var el = e.target;
-      if (!el.name) return;
+      if (!el.name || el.type === 'checkbox' || el.type === 'radio') return;
       if (el.dataset.mascara) { var pos = el.value.length; el.value = mascara(el.dataset.mascara, el.value); }
       f[el.name] = el.value;
       gravar('sa_checkout', f, sessionStorage);
@@ -1276,7 +1313,8 @@
     };
     app.onchange = function (e) {
       var el = e.target;
-      if (el.name === 'metodo') { f.metodo = el.value; gravar('sa_checkout', f, sessionStorage); render(ultimaCotacao, '', false); }
+      if (el.name === 'metodo') { f.metodo = el.value; estado.formTocado = true; gravar('sa_checkout', f, sessionStorage); render(ultimaCotacao, '', false); }
+      if (el.name === 'salvar_cartao') { f.salvar_cartao = el.checked; gravar('sa_checkout', f, sessionStorage); }
       if (el.name === 'parcelas') { f.parcelas = Number(el.value); gravar('sa_checkout', f, sessionStorage); }
       // e-mail/telefone também contam pra 1ª compra: confere de novo ao sair do campo
       if ((el.name === 'email' || el.name === 'telefone') && oferta1aAtiva() && chave1a() && chave1a() !== conferido) recotar();
@@ -1287,21 +1325,37 @@
       erros = validarForm(f);
       if (Object.keys(erros).length) { render(ultimaCotacao, 'Confere os campos destacados.', false); var primeiro = document.querySelector('.campo.invalido input'); if (primeiro) primeiro.focus(); return; }
       render(ultimaCotacao, '', true);
-      track('add_payment_info', { value: ultimaCotacao ? ultimaCotacao.resumo.total : 0, payment_type: f.metodo === 'CREDIT_CARD' ? 'cartao' : 'pix', items: ultimaCotacao ? ultimaCotacao.resumo.itens.map(function (i) { return { item_id: i.sku, item_name: i.nome, price: i.preco, quantity: i.qty }; }) : [] });
+      track('add_payment_info', { value: ultimaCotacao ? ultimaCotacao.resumo.total : 0, payment_type: /^SALVO:/.test(f.metodo) ? 'cartao_salvo' : f.metodo === 'CREDIT_CARD' ? 'cartao' : 'pix', items: ultimaCotacao ? ultimaCotacao.resumo.itens.map(function (i) { return { item_id: i.sku, item_name: i.nome, price: i.preco, quantity: i.qty }; }) : [] });
+      var salvo = cartaoEscolhido();
+      if (/^SALVO:/.test(f.metodo) && (!salvo || !cepDoCartao(salvo))) { f.metodo = 'CREDIT_CARD'; render(ultimaCotacao, 'Escolha outra forma de pagamento pra este endereço.', false); return; }
+      var metodoEnvio = salvo ? 'CREDIT_CARD' : f.metodo;
       var body = {
         itens: itensPedido(),
         cliente: { nome: f.nome.trim(), cpf: f.cpf, email: f.email.trim(), telefone: f.telefone, cep: f.cep, numero: String(f.numero).trim(), complemento: f.complemento || '' },
-        metodo: f.metodo, parcelas: f.metodo === 'CREDIT_CARD' ? (Number(f.parcelas) || 1) : 1,
+        metodo: metodoEnvio, parcelas: metodoEnvio === 'CREDIT_CARD' ? (Number(f.parcelas) || 1) : 1,
+        cartao_salvo: salvo ? salvo.id : undefined,
+        salvar_cartao: logado && f.metodo === 'CREDIT_CARD' && f.salvar_cartao !== false,
         frete: estado.freteOpcao,
         tracking: { ga_client_id: gaClientId(), ga_session_id: gaSessionId(), ads: cliqueAds(), fbp: cookie('_fbp'), fbc: cookie('_fbc'), source_url: location.href }
       };
       // Checkout passa pela função da própria loja (anti-robô BotID), que repassa pro backend.
-      fetch('/api/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      (logado ? tokenConta().catch(function () { return null; }) : Promise.resolve(null))
+        .then(function (token) {
+          var headers = { 'Content-Type': 'application/json' };
+          if (token) headers.Authorization = 'Bearer ' + token;
+          return fetch('/api/checkout', { method: 'POST', headers: headers, body: JSON.stringify(body) });
+        })
         .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, dados: d }; }); })
         .then(function (res) {
           if (g !== geracao) return;
           var d = res.dados || {};
           if (!res.ok) throw new Error(d.erro || 'Não foi possível iniciar o pagamento.');
+          // Cartão salvo: cobrado aqui mesmo; a confirmação acompanha a aprovação.
+          if (d.cartao_salvo) {
+            gravar('sa_pedido_pendente', { id: d.pedido_id, total: d.resumo && d.resumo.total, metodo: 'CREDIT_CARD', prazo: d.resumo && d.resumo.frete_prazo }, sessionStorage);
+            estado.conta = null;
+            navegar('/confirmacao?pedido=' + encodeURIComponent(d.pedido_id)); return;
+          }
           // Só sai do site pra página de pagamento do Asaas, nunca pra outro endereço.
           if (d.metodo === 'CREDIT_CARD' && d.checkout_url && /^https:\/\/([a-z0-9-]+\.)*asaas\.com\//i.test(d.checkout_url)) {
             gravar('sa_pedido_pendente', { id: d.pedido_id, total: d.resumo && d.resumo.total, metodo: 'CREDIT_CARD', prazo: d.resumo && d.resumo.frete_prazo }, sessionStorage);
@@ -1420,6 +1474,427 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Conta do cliente. Login é do Supabase Auth (Google e e-mail/senha); a biblioteca
+  // só é baixada quando precisa (entrar, área do cliente, checkout logado). O backend
+  // (/api/conta) confere o token a cada chamada — aqui nada é decidido sobre acesso.
+  // ---------------------------------------------------------------------------
+  var AUTH = { url: 'https://ilziprrnkabilgewxvqq.supabase.co', chave: CONFIG.supabaseChave, lib: '/vendor/supabase-2.117.3.js' };
+  var CHAVE_SESSAO = 'sb-ilziprrnkabilgewxvqq-auth-token';
+  function sessaoLocal() {
+    try { var s = JSON.parse(localStorage.getItem(CHAVE_SESSAO) || 'null'); return s && s.user ? s : null; } catch (e) { return null; }
+  }
+  function primeiroNomeConta(u) {
+    var m = (u && u.user_metadata) || {};
+    var n = String(m.full_name || m.name || m.nome || '').trim().split(/\s+/)[0];
+    return n || String((u && u.email) || '').split('@')[0];
+  }
+  function atualizarCabecalhoConta() {
+    // Sem a chave pública configurada, a loja segue sem login (nada de botão quebrado).
+    document.documentElement.classList.toggle('sem-login', !AUTH.chave);
+    var a = document.getElementById('nav-conta');
+    if (!a) return;
+    var s = sessaoLocal();
+    a.innerHTML = s ? '<span class="ola">Olá, </span>' + h(primeiroNomeConta(s.user).slice(0, 14)) : 'Entrar';
+  }
+  function carregarScript(src) {
+    return new Promise(function (ok, falha) {
+      var el = document.createElement('script');
+      el.src = src; el.async = true; el.onload = ok; el.onerror = function () { falha(new Error('Não foi possível carregar o login. Confira sua conexão.')); };
+      document.head.appendChild(el);
+    });
+  }
+  function auth() {
+    if (!AUTH.chave) return Promise.reject(new Error('Login indisponível no momento.'));
+    if (!estado.auth) {
+      estado.auth = carregarScript(AUTH.lib).then(function () {
+        // detectSessionInUrl desligado: o boot.js tira o código da URL antes dos
+        // rastreadores verem, e o código é trocado aqui (trocarCodigoDaUrl).
+        var c = window.supabase.createClient(AUTH.url, AUTH.chave, { auth: { flowType: 'pkce', persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: CHAVE_SESSAO } });
+        c.auth.onAuthStateChange(function (ev) { if (ev === 'SIGNED_OUT') estado.conta = null; setTimeout(atualizarCabecalhoConta, 0); });
+        return c;
+      });
+      estado.auth.catch(function () { estado.auth = null; });
+    }
+    return estado.auth;
+  }
+  // Código que voltou do Google (?code=) ou do e-mail (?token_hash=&type=), guardado pelo boot.js.
+  function trocarCodigoDaUrl(c) {
+    var d = ler('sa_auth_url', null, sessionStorage);
+    if (!d) return Promise.resolve(null);
+    apagar('sa_auth_url', sessionStorage);
+    if (d.error_description) return Promise.reject(new Error(traduzirErroAuth(d.error_description)));
+    if (d.code) return c.auth.exchangeCodeForSession(d.code).then(function (r) { if (r.error) throw r.error; return { tipo: 'oauth' }; });
+    if (d.token_hash) {
+      var tipo = d.type === 'recovery' ? 'recovery' : 'email';
+      return c.auth.verifyOtp({ token_hash: d.token_hash, type: tipo }).then(function (r) { if (r.error) throw r.error; return { tipo: tipo }; });
+    }
+    return Promise.resolve(null);
+  }
+  function tokenConta() {
+    if (!sessaoLocal()) return Promise.resolve(null);
+    return auth().then(function (c) { return c.auth.getSession(); }).then(function (r) { return r.data && r.data.session ? r.data.session.access_token : null; });
+  }
+  function apiConta(metodo, corpo) {
+    return tokenConta().then(function (t) {
+      if (!t) { var e0 = new Error('Entre na sua conta.'); e0.status = 401; throw e0; }
+      return fetch(CONFIG.api + '/api/conta', { method: metodo, headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' }, body: corpo ? JSON.stringify(corpo) : undefined })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { if (!r.ok) { var e = new Error(d.erro || 'Não foi possível carregar sua conta.'); e.status = r.status; throw e; } return d; }); });
+    });
+  }
+  function carregarConta(forcar) {
+    if (estado.conta && !forcar) return Promise.resolve(estado.conta);
+    return apiConta('GET').then(function (d) { estado.conta = d; return d; });
+  }
+  function traduzirErroAuth(m) {
+    m = String((m && m.message) || m || '');
+    if (/invalid login credentials/i.test(m)) return 'E-mail ou senha incorretos.';
+    if (/email not confirmed/i.test(m)) return 'Confirme seu e-mail pelo link que enviamos (veja também a caixa de spam).';
+    if (/already registered|already been registered/i.test(m)) return 'Já existe uma conta com esse e-mail. Entre ou recupere a senha.';
+    if (/rate limit|too many|seconds/i.test(m)) return 'Muitas tentativas seguidas. Aguarde alguns minutos e tente de novo.';
+    if (/password/i.test(m) && /(least|short|weak|characters|pwned|leaked)/i.test(m)) return 'Senha fraca: use pelo menos 8 caracteres, com letras e números.';
+    if (/same.*password|different from the old/i.test(m)) return 'A nova senha precisa ser diferente da anterior.';
+    if (/expired|invalid.*(token|otp|code|flow)|not found|code verifier/i.test(m)) return 'Este link expirou ou já foi usado. Peça outro.';
+    return m && m.length < 140 && !/[{}<>]/.test(m) ? m : 'Não foi possível concluir agora. Tente de novo.';
+  }
+  // Só volta pra páginas do próprio site (nada de ?voltar=https://golpe.com).
+  function destinoSeguro(v) { v = String(v || ''); return /^\/(?!\/)[\w\-/.?=&%]*$/.test(v) && !/^\/(entrar|conta\/confirmar)/.test(v) ? v : ''; }
+  function sairDaConta() {
+    var feito = function () {
+      try { localStorage.removeItem(CHAVE_SESSAO); } catch (e) {}
+      estado.conta = null; atualizarCabecalhoConta(); toast('Você saiu da sua conta.'); navegar('/');
+    };
+    auth().then(function (c) { return c.auth.signOut({ scope: 'local' }); }).then(feito, feito);
+  }
+
+  // ---- /entrar: Google, e-mail e senha, criar conta, esqueci a senha ----
+  var G_ICONE = '<svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>';
+  function viewEntrar() {
+    titulo('Entrar');
+    var q = query();
+    var voltar = destinoSeguro(q.voltar);
+    if (sessaoLocal()) { navegar(voltar || '/conta', true); return; }
+    var modo = q.modo === 'criar' ? 'criar' : 'entrar';
+    var dados = { email: '', nome: '' };
+    function render(msg, tipoMsg, enviando) {
+      var campo = function (nome, rotulo, attrs, ajuda) { return '<div class="campo"><label for="c-' + nome + '">' + h(rotulo) + '</label><input id="c-' + nome + '" name="' + nome + '" value="' + h(nome === 'senha' ? '' : (dados[nome] || '')) + '" ' + attrs + '>' + (ajuda ? '<span class="ajuda">' + h(ajuda) + '</span>' : '') + '</div>'; };
+      var titulos = { entrar: 'Entrar', criar: 'Criar conta', esqueci: 'Recuperar senha' };
+      app.innerHTML = '<div class="container conta-entrar"><div class="painel entrar-caixa">' +
+        '<h1 class="display">' + titulos[modo] + '</h1>' +
+        (modo === 'esqueci' ? '<p class="entrar-sub">Digite o e-mail da conta. Se ele estiver cadastrado, enviamos um link pra criar uma senha nova.</p>'
+          : '<p class="entrar-sub">Acompanhe seus pedidos, salve favoritos e compre mais rápido. Comprar sem conta continua valendo.</p>' +
+            '<button type="button" class="btn btn-google btn-bloco" data-action="entrar-google">' + G_ICONE + '<span>Continuar com o Google</span></button>' +
+            '<div class="entrar-ou"><span>ou com e-mail</span></div>') +
+        '<form class="form-grid" data-action="form-conta" method="post" action="/entrar" novalidate>' +
+          (modo === 'criar' ? campo('nome', 'Nome', 'autocomplete="name" required maxlength="80"') : '') +
+          campo('email', 'E-mail', 'type="email" inputmode="email" autocomplete="username" required maxlength="120"') +
+          (modo === 'entrar' ? campo('senha', 'Senha', 'type="password" autocomplete="current-password" required') : '') +
+          (modo === 'criar' ? campo('senha', 'Senha', 'type="password" autocomplete="new-password" required minlength="8"', 'Mínimo de 8 caracteres, com letras e números.') : '') +
+          (msg ? '<div class="aviso ' + (tipoMsg || 'erro') + '" role="alert">' + msg + '</div>' : '') +
+          '<button class="btn btn-laranja btn-bloco" type="submit"' + (enviando ? ' disabled' : '') + '>' + (enviando ? 'Aguarde…' : ({ entrar: 'Entrar', criar: 'Criar conta', esqueci: 'Enviar link' })[modo]) + '</button>' +
+        '</form>' +
+        '<div class="entrar-links">' +
+          (modo === 'entrar' ? '<button type="button" class="link" data-action="modo-conta" data-modo="esqueci">Esqueci minha senha</button><span>Não tem conta? <button type="button" class="link" data-action="modo-conta" data-modo="criar">Criar conta</button></span>' : '') +
+          (modo === 'criar' ? '<span>Já tem conta? <button type="button" class="link" data-action="modo-conta" data-modo="entrar">Entrar</button></span>' : '') +
+          (modo === 'esqueci' ? '<button type="button" class="link" data-action="modo-conta" data-modo="entrar">Voltar pra entrar</button>' : '') +
+        '</div>' +
+        (modo === 'criar' ? '<p class="entrar-lgpd">Ao criar a conta, você concorda com os <a href="/termos" data-link>termos de uso</a> e a <a href="/privacidade" data-link>política de privacidade</a>.</p>' : '') +
+      '</div></div>';
+    }
+    render();
+    estado.entrarModo = function (novo) { modo = novo; render(); var el = document.getElementById(modo === 'criar' ? 'c-nome' : 'c-email'); if (el) el.focus(); };
+    app.oninput = function (e) { if (e.target.name && e.target.name !== 'senha') dados[e.target.name] = e.target.value; };
+    app.onsubmit = function (e) {
+      if (!e.target.matches('[data-action="form-conta"]')) return;
+      e.preventDefault();
+      var f = e.target;
+      var email = String(f.email.value || '').trim().toLowerCase();
+      var senha = f.senha ? f.senha.value : '';
+      dados.email = email;
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) { render('Digite um e-mail válido.'); return; }
+      if (modo === 'criar') {
+        dados.nome = String(f.nome.value || '').trim();
+        if (dados.nome.length < 2) { render('Digite seu nome.'); return; }
+        if (senha.length < 8 || !/[A-Za-z]/.test(senha) || !/\d/.test(senha)) { render('Senha fraca: use pelo menos 8 caracteres, com letras e números.'); return; }
+      }
+      if (modo === 'entrar' && !senha) { render('Digite sua senha.'); return; }
+      render('', '', true);
+      if (voltar) gravar('sa_voltar', voltar, sessionStorage);
+      auth().then(function (c) {
+        if (modo === 'entrar') return c.auth.signInWithPassword({ email: email, password: senha }).then(function (r) {
+          if (r.error) throw r.error;
+          track('login', { method: 'email' }); estado.conta = null; atualizarCabecalhoConta();
+          apagar('sa_voltar', sessionStorage);
+          navegar(voltar || '/conta', true);
+        });
+        if (modo === 'criar') return c.auth.signUp({ email: email, password: senha, options: { data: { full_name: dados.nome }, emailRedirectTo: CONFIG.site + '/conta/confirmar' } }).then(function (r) {
+          if (r.error) throw r.error;
+          track('sign_up', { method: 'email' });
+          // Mesma resposta exista ou não a conta (não revela quem é cliente).
+          render('Pronto! Enviamos um link de confirmação para <strong>' + h(email) + '</strong>. Abra o e-mail e toque no link pra ativar a conta (veja também o spam).', 'ok');
+        });
+        return c.auth.resetPasswordForEmail(email, { redirectTo: CONFIG.site + '/conta/confirmar' }).then(function (r) {
+          if (r.error) throw r.error;
+          render('Se existir uma conta com <strong>' + h(email) + '</strong>, o link pra criar uma senha nova chega em instantes. Ele vale por 1 hora.', 'ok');
+        });
+      }).catch(function (err) { render(h(traduzirErroAuth(err))); });
+    };
+  }
+  function entrarComGoogle() {
+    var voltar = destinoSeguro(query().voltar);
+    if (voltar) gravar('sa_voltar', voltar, sessionStorage);
+    track('login_inicio', { method: 'google' });
+    auth().then(function (c) {
+      return c.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: CONFIG.site + '/conta', queryParams: { prompt: 'select_account' } } });
+    }).then(function (r) { if (r && r.error) throw r.error; }).catch(function (e) { toast(h(traduzirErroAuth(e))); });
+  }
+
+  // ---- /conta/confirmar: link do e-mail (confirmar cadastro ou nova senha) ----
+  function viewConfirmarConta() {
+    titulo('Sua conta');
+    app.innerHTML = '<div class="carregando"><span class="spinner"></span> Conferindo o link…</div>';
+    var g = geracao;
+    auth().then(function (c) {
+      return trocarCodigoDaUrl(c).then(function (r) {
+        if (g !== geracao) return;
+        if (!r) { navegar('/conta', true); return; }
+        atualizarCabecalhoConta();
+        if (r.tipo !== 'recovery') { toast('E-mail confirmado. Bem-vindo(a)!'); var v = ler('sa_voltar', '', sessionStorage); apagar('sa_voltar', sessionStorage); navegar(destinoSeguro(v) || '/conta', true); return; }
+        novaSenha(c);
+      });
+    }).catch(function (e) {
+      if (g !== geracao) return;
+      app.innerHTML = '<div class="container conta-entrar"><div class="painel entrar-caixa"><h1 class="display">Link inválido</h1><p>' + h(traduzirErroAuth(e)) + '</p><a class="btn btn-laranja btn-bloco" href="/entrar" data-link>Ir para entrar</a></div></div>';
+    });
+  }
+  function novaSenha(c) {
+    var s = sessaoLocal();
+    function render(msg, enviando) {
+      app.innerHTML = '<div class="container conta-entrar"><div class="painel entrar-caixa"><h1 class="display">Nova senha</h1>' +
+        '<form class="form-grid" data-action="nova-senha" method="post" action="/conta" novalidate>' +
+          '<input type="email" name="usuario" autocomplete="username" value="' + h(s && s.user ? s.user.email : '') + '" hidden readonly>' +
+          '<div class="campo"><label for="c-senha">Nova senha</label><input id="c-senha" name="senha" type="password" autocomplete="new-password" required minlength="8"><span class="ajuda">Mínimo de 8 caracteres, com letras e números.</span></div>' +
+          (msg ? '<div class="aviso erro" role="alert">' + h(msg) + '</div>' : '') +
+          '<button class="btn btn-laranja btn-bloco" type="submit"' + (enviando ? ' disabled' : '') + '>' + (enviando ? 'Salvando…' : 'Salvar senha') + '</button>' +
+        '</form></div></div>';
+    }
+    render();
+    app.onsubmit = function (e) {
+      if (!e.target.matches('[data-action="nova-senha"]')) return;
+      e.preventDefault();
+      var senha = e.target.senha.value;
+      if (senha.length < 8 || !/[A-Za-z]/.test(senha) || !/\d/.test(senha)) { render('Senha fraca: use pelo menos 8 caracteres, com letras e números.'); return; }
+      render('', true);
+      c.auth.updateUser({ password: senha }).then(function (r) {
+        if (r.error) throw r.error;
+        toast('Senha nova salva. Você já está na sua conta.');
+        navegar('/conta', true);
+      }).catch(function (err) { render(traduzirErroAuth(err)); });
+    };
+  }
+
+  // ---- /conta: área do cliente ----
+  var MENU_CONTA = [
+    ['', 'Minha conta', 'M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z'],
+    ['compras', 'Minhas compras', 'M3 4h2l2.4 11.2a1 1 0 0 0 1 .8h9.2a1 1 0 0 0 1-.8L21 8H6M9 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm9 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2z'],
+    ['favoritos', 'Favoritos', 'M12 20s-7-4.4-9-9a5 5 0 0 1 9-3 5 5 0 0 1 9 3c-2 4.6-9 9-9 9z'],
+    ['avaliacoes', 'Minhas avaliações', 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z'],
+    ['pagamentos', 'Métodos de pagamento', 'M3 6h18v12H3zM3 10h18M7 15h4']
+  ];
+  function iconeConta(d) { return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="' + d + '"/></svg>'; }
+  function dataBr(iso, longa) { if (!iso) return ''; var d = new Date(iso); return longa ? d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: '2-digit' }).replace(/ de /g, ' ').replace('.', '') : d.toLocaleDateString('pt-BR'); }
+  function pilulaStatus(p) { return '<span class="pilula' + (p.pago ? ' ok' : (p.etapa == null ? ' ruim' : '')) + '">' + h(p.rotulo) + '</span>'; }
+  function produtoDoItem(i) {
+    var a = estado.porSku[String(i.sku).toUpperCase()];
+    return a ? a : (i.codigo_pai && estado.porCodigo[String(i.codigo_pai).toUpperCase()] ? { produto: estado.porCodigo[String(i.codigo_pai).toUpperCase()], variacao: null } : null);
+  }
+  function barraStatusHtml(p) {
+    if (p.etapa == null) return '';
+    var nomes = ['Pedido feito', p.etapa === 1 ? 'Aguardando pagamento' : 'Pagamento', 'Separação', 'A caminho', 'Entregue'];
+    var datas = [p.criado_em, p.pago_em];
+    return '<div class="status-barra" role="img" aria-label="Status: ' + h(p.rotulo) + '"><div class="status-trilho">' + nomes.map(function (_, i) {
+      return '<span class="status-seg' + (i <= p.etapa ? ' cheio' : '') + (i === p.etapa && p.etapa < 4 ? ' atual' : '') + '"><i></i></span>';
+    }).join('') + '</div><div class="status-nomes">' + nomes.map(function (n, i) {
+      return '<span class="' + (i <= p.etapa ? 'feito' : '') + '"><strong>' + h(n) + '</strong>' + (i <= p.etapa && datas[i] ? '<small>' + h(dataBr(datas[i])) + '</small>' : '') + '</span>';
+    }).join('') + '</div></div>';
+  }
+  function itemPedidoHtml(p, i, comAcoes) {
+    var a = produtoDoItem(i);
+    var url = a ? (a.variacao && a.variacao.url) || a.produto.url : '';
+    var img = i.imagem || (a && ((a.variacao && a.variacao.imagem) || a.produto.imagem));
+    return '<div class="conta-item">' +
+      (img ? '<img src="' + h(foto(img)) + '" alt="" loading="lazy">' : '<div class="conta-item-vazio"></div>') +
+      '<div><div class="conta-item-topo">' + (url ? '<a href="' + h(url) + '" data-link>' + h(i.nome) + '</a>' : '<span>' + h(i.nome) + '</span>') + '<strong>' + h(fmt(i.total)) + '</strong></div>' +
+      '<small>Quantidade: ' + h(i.qty) + '</small>' +
+      (comAcoes && p.pago ? '<div class="conta-acoes">' + (i.avaliado ? '<span class="pilula ok">Avaliado ✓</span>' : '<button class="btn btn-verde btn-mini" data-action="avaliar-item" data-pedido="' + h(p.id) + '" data-sku="' + h(i.sku) + '">Escrever avaliação</button>') + '</div>' : '') +
+      '</div></div>';
+  }
+  function viewConta(m) {
+    var aba = m[1] || '', id = m[2] || '';
+    titulo('Minha conta');
+    if (!sessaoLocal() && !ler('sa_auth_url', null, sessionStorage)) { navegar('/entrar?voltar=' + encodeURIComponent(location.pathname), true); return; }
+    app.innerHTML = '<div class="carregando"><span class="spinner"></span> Abrindo sua conta…</div>';
+    var g = geracao;
+    auth().then(function (c) { return trocarCodigoDaUrl(c); }).then(function (r) {
+      if (r && r.tipo === 'oauth') {
+        track('login', { method: 'google' }); estado.conta = null; atualizarCabecalhoConta();
+        var v = destinoSeguro(ler('sa_voltar', '', sessionStorage)); apagar('sa_voltar', sessionStorage);
+        if (v && v !== location.pathname) { navegar(v, true); return null; }
+      }
+      return carregarConta(true);
+    }).then(function (d) {
+      if (!d || g !== geracao) return;
+      renderConta(aba, id, d);
+    }).catch(function (e) {
+      if (g !== geracao) return;
+      if (e && e.status === 401) { try { localStorage.removeItem(CHAVE_SESSAO); } catch (x) {} atualizarCabecalhoConta(); navegar('/entrar?voltar=' + encodeURIComponent(location.pathname), true); return; }
+      app.innerHTML = '<div class="container institucional"><h1 class="display">Não deu pra abrir sua conta.</h1><p>' + h(e.status === 403 ? e.message : traduzirErroAuth(e)) + '</p><p><button class="link" data-action="recarregar-conta">Tentar de novo</button></p></div>';
+    });
+  }
+  function renderConta(aba, id, d) {
+    var menu = '<aside class="conta-menu"><nav aria-label="Minha conta">' + MENU_CONTA.map(function (x) {
+      return '<a href="/conta' + (x[0] ? '/' + x[0] : '') + '" data-link class="' + (x[0] === aba ? 'ativo' : '') + '">' + iconeConta(x[2]) + '<span>' + h(x[1]) + '</span></a>';
+    }).join('') + '<button type="button" data-action="sair">' + iconeConta('M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l5-5-5-5M15 12H4') + '<span>Sair</span></button></nav></aside>';
+    var corpo = '';
+    var pedidos = d.pedidos || [];
+    if (aba === '') {
+      var ult = pedidos[0];
+      var nome = (d.perfil.nome || '').split(' ')[0];
+      var favs = (d.favoritos || []).length;
+      corpo = '<h1 class="conta-titulo">Olá' + (nome ? ', ' + h(nome) : '') + '!</h1><p class="conta-sub">Seus pedidos, favoritos e cartões num lugar só.</p>' +
+        '<div class="conta-destaques">' +
+          '<div class="conta-cartao ultima">' +
+            '<div class="conta-cartao-topo"><span>' + iconeConta('M3 7h11v9H3zM14 10h4l3 3v3h-7M7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4z') + '<strong>Última compra</strong></span>' + (ult ? '<small>Pedido ' + h(ult.id) + '</small>' : '') + '</div>' +
+            (ult ? '<div class="conta-cartao-corpo">' + itemPedidoHtml(ult, ult.itens[0], false) +
+                (ult.itens.length > 1 ? '<p class="conta-mais">+ ' + (ult.itens.length - 1) + ' ' + (ult.itens.length > 2 ? 'itens' : 'item') + ' · total ' + h(fmt(ult.total)) + '</p>' : '') +
+                '<div class="conta-linha">' + pilulaStatus(ult) + '<span>' + h(dataBr(ult.criado_em, true)) + '</span></div>' +
+                '<div class="conta-acoes">' + (ult.pago && ult.itens.some(function (i) { return !i.avaliado; }) ? '<button class="btn btn-verde btn-mini" data-action="avaliar-item" data-pedido="' + h(ult.id) + '" data-sku="' + h((ult.itens.find(function (i) { return !i.avaliado; }) || {}).sku) + '">Escrever avaliação</button>' : '') +
+                '<button class="btn btn-contorno btn-mini" data-action="comprar-novamente" data-pedido="' + h(ult.id) + '">Comprar novamente</button></div></div>' +
+                '<a class="conta-cartao-rodape" href="/conta/compras/' + h(ult.id) + '" data-link>Ver detalhes do pedido</a>'
+              : '<div class="conta-cartao-corpo"><p>Você ainda não tem compras com <strong>' + h(d.perfil.email) + '</strong>.</p><a class="btn btn-laranja btn-mini" href="/modelos" data-link>Ver modelos</a></div>') +
+          '</div>' +
+          '<a class="conta-cartao favs" href="/conta/favoritos" data-link><span class="conta-cartao-topo"><span>' + iconeConta(MENU_CONTA[2][2]) + '<strong>Meus favoritos</strong></span></span>' +
+            '<span class="favs-num">' + favs + '</span><span class="favs-rotulo">' + (favs === 1 ? 'modelo salvo' : 'modelos salvos') + '</span><span class="favs-ir">Ver favoritos →</span></a>' +
+        '</div>' +
+        '<h2 class="conta-h2">Acesso rápido</h2><div class="conta-rapido">' +
+          MENU_CONTA.slice(1).map(function (x) { return '<a href="/conta/' + x[0] + '" data-link>' + iconeConta(x[2]) + '<span>' + h(x[1]) + '</span></a>'; }).join('') +
+          '<a href="/contato" data-link>' + iconeConta('M12 21a9 9 0 1 0-8-4.9L3 21l4.9-1A9 9 0 0 0 12 21zM9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6M12 16.5v.01') + '<span>Ajuda</span></a>' +
+        '</div>';
+    } else if (aba === 'compras' && id) {
+      var p = pedidos.find(function (x) { return x.id === id; });
+      if (!p) corpo = '<h1 class="conta-titulo">Pedido não encontrado</h1><p>Ele não está nesta conta. <a href="/conta/compras" data-link>Ver minhas compras</a></p>';
+      else {
+        var linha = function (r, v, cls) { return '<div class="resumo-linha' + (cls ? ' ' + cls : '') + '"><span>' + r + '</span><span>' + v + '</span></div>'; };
+        corpo = '<a class="link conta-voltar" href="/conta/compras" data-link>← Minhas compras</a>' +
+          '<h1 class="conta-titulo">Pedido ' + h(p.id) + '</h1><p class="conta-sub">Realizado em ' + h(new Date(p.criado_em).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })) + ' · ' + h(fmt(p.total)) + '</p>' +
+          '<div class="painel conta-bloco"><div class="conta-linha"><strong>Status do pedido</strong>' + pilulaStatus(p) + '</div>' + barraStatusHtml(p) + '</div>' +
+          '<div class="painel conta-bloco"><strong>Itens</strong>' + p.itens.map(function (i) { return itemPedidoHtml(p, i, true); }).join('') +
+            '<div class="conta-totais">' + linha('Subtotal', h(fmt(p.subtotal))) +
+              (p.desconto > 0 ? linha('2ª armação -' + h(p.desconto_pct) + '%', '-' + h(fmt(p.desconto)), 'verde') : '') +
+              (p.desconto_primeira > 0 ? linha('1ª compra -' + h(p.desconto_primeira_pct) + '%', '-' + h(fmt(p.desconto_primeira)), 'verde') : '') +
+              linha('Frete' + (p.frete_prazo ? ' <small>(' + h(p.frete_prazo) + ')</small>' : ''), p.frete ? h(fmt(p.frete)) : 'grátis') +
+              linha('<strong>Total</strong>', '<strong>' + h(fmt(p.total)) + '</strong>') + '</div>' +
+            '<button class="btn btn-contorno btn-mini" data-action="comprar-novamente" data-pedido="' + h(p.id) + '">Comprar novamente</button></div>' +
+          '<div class="conta-duas">' +
+            '<div class="painel conta-bloco"><strong>Pagamento</strong><span>' + h(p.pagamento) + '</span></div>' +
+            (p.entrega ? '<div class="painel conta-bloco"><strong>Entrega</strong><span>' + h(p.entrega) + '</span></div>' : '') +
+          '</div>' +
+          '<p class="conta-ajuda">Precisa de ajuda com este pedido? Escreva pra <a href="mailto:' + h(CONFIG.email) + '?subject=' + encodeURIComponent('Pedido ' + p.id) + '">' + h(CONFIG.email) + '</a> com o número do pedido. Troca grátis em até 7 dias úteis após o recebimento.</p>';
+      }
+    } else if (aba === 'compras') {
+      corpo = '<h1 class="conta-titulo">Minhas compras</h1>' + (pedidos.length ? '<div class="conta-lista">' + pedidos.map(function (p) {
+        return '<a class="conta-pedido" href="/conta/compras/' + h(p.id) + '" data-link>' +
+          '<div class="conta-pedido-fotos">' + p.itens.slice(0, 3).map(function (i) { var a = produtoDoItem(i); var img = i.imagem || (a && (a.variacao || a.produto).imagem); return img ? '<img src="' + h(foto(img)) + '" alt="" loading="lazy">' : ''; }).join('') + '</div>' +
+          '<div class="conta-pedido-info"><strong>Pedido ' + h(p.id) + '</strong><small>' + h(dataBr(p.criado_em, true)) + ' · ' + p.itens.reduce(function (s, i) { return s + i.qty; }, 0) + ' ' + (p.itens.reduce(function (s, i) { return s + i.qty; }, 0) > 1 ? 'itens' : 'item') + ' · ' + h(fmt(p.total)) + '</small></div>' +
+          pilulaStatus(p) + '</a>';
+      }).join('') + '</div>' : '<div class="painel"><p>Nenhuma compra com <strong>' + h(d.perfil.email) + '</strong> ainda. Pedidos feitos sem conta com esse e-mail aparecem aqui sozinhos.</p><a class="btn btn-laranja btn-mini" href="/modelos" data-link>Ver modelos</a></div>');
+    } else if (aba === 'favoritos') {
+      var lista = (d.favoritos || []).map(function (c) { return estado.porCodigo[String(c).toUpperCase()]; }).filter(Boolean);
+      corpo = '<h1 class="conta-titulo">Favoritos</h1>' + (lista.length ? '<div class="grade conta-favs">' + lista.map(function (p) {
+        return '<div class="conta-fav">' + cardProduto(p) + '<button class="link" data-action="favoritar" data-codigo="' + h(p.codigo) + '" data-ligado="1">Remover dos favoritos</button></div>';
+      }).join('') + '</div>' : '<div class="painel"><p>Toque em <strong>♡ Favoritar</strong> na página de um modelo pra guardar aqui.</p><a class="btn btn-laranja btn-mini" href="/modelos" data-link>Ver modelos</a></div>');
+    } else if (aba === 'avaliacoes') {
+      var pendentes = [];
+      pedidos.forEach(function (p) { if (p.pago) p.itens.forEach(function (i) { if (!i.avaliado && !pendentes.some(function (x) { return x.i.sku === i.sku; })) pendentes.push({ p: p, i: i }); }); });
+      corpo = '<h1 class="conta-titulo">Minhas avaliações</h1>' +
+        (pendentes.length ? '<h2 class="conta-h2">Pra avaliar</h2><div class="painel conta-bloco">' + pendentes.map(function (x) { return itemPedidoHtml(x.p, x.i, true); }).join('') + '</div>' : '') +
+        '<h2 class="conta-h2">Enviadas</h2>' + ((d.avaliacoes || []).length ? '<div class="conta-lista">' + d.avaliacoes.map(function (a) {
+          var prod = estado.porCodigo[String(a.modelo).toUpperCase()];
+          return '<div class="painel conta-aval"><div class="conta-linha"><strong>' + h(prod ? prod.nome : a.modelo) + (a.cor ? ' · ' + h(a.cor) : '') + '</strong><span class="pilula' + (a.status === 'Publicada' ? ' ok' : '') + '">' + h(a.status) + '</span></div>' +
+            '<span class="estrelas" aria-label="Nota ' + a.nota + ' de 5">' + estrelas(a.nota) + '</span><p>' + h(a.texto) + '</p><small>' + h(dataBr(a.data, true)) + '</small></div>';
+        }).join('') + '</div>' : '<p class="conta-sub">Você ainda não avaliou nenhuma compra.</p>') +
+        '<p class="conta-ajuda">Toda avaliação passa por uma conferência rápida antes de aparecer na loja. Publicamos as boas e as ruins.</p>';
+    } else if (aba === 'pagamentos') {
+      corpo = '<h1 class="conta-titulo">Métodos de pagamento</h1>' +
+        ((d.cartoes || []).length ? '<div class="conta-lista">' + d.cartoes.map(function (c) {
+          return '<div class="painel conta-cartao-salvo"><div class="cc-icone">' + iconeConta(MENU_CONTA[4][2]) + '</div><div><strong>' + h(c.bandeira ? c.bandeira.charAt(0) + c.bandeira.slice(1).toLowerCase() : 'Cartão') + ' •••• ' + h(c.final || '') + '</strong>' +
+            '<small>Salvo em ' + h(dataBr(c.criado_em)) + (c.ceps && c.ceps.length ? ' · entrega em ' + h(c.ceps.join(', ')) : '') + '</small></div>' +
+            '<button class="link" data-action="remover-cartao" data-id="' + h(c.id) + '">Remover</button></div>';
+        }).join('') + '</div>' : '<div class="painel"><p>Nenhum cartão salvo.</p></div>') +
+        '<div class="painel conta-bloco conta-explica"><strong>Como salvar um cartão</strong><span>Na próxima compra no cartão de crédito, deixe marcado <em>“Salvar este cartão”</em>. Depois disso, é só escolher o cartão no checkout e pagar sem digitar nada.</span>' +
+        '<strong>É seguro?</strong><span>O número do cartão fica guardado com o Asaas, a instituição de pagamento, e nunca passa pelo nosso site. A gente só vê a bandeira e os 4 últimos números. Por segurança, o pagamento com 1 clique vale para os endereços onde você já recebeu com esse cartão; endereço novo pede o cartão na página segura.</span>' +
+        '<strong>Pix</strong><span>Continua disponível em todo pedido, com aprovação na hora.</span></div>';
+    }
+    app.innerHTML = '<div class="container conta">' + menu + '<section class="conta-conteudo">' + corpo + '</section></div>';
+  }
+  function comprarNovamente(pedidoId) {
+    var p = estado.conta && (estado.conta.pedidos || []).find(function (x) { return x.id === pedidoId; });
+    if (!p) return;
+    var faltou = 0, entrou = 0;
+    p.itens.forEach(function (i) {
+      var a = estado.porSku[String(i.sku).toUpperCase()];
+      if (!a || !(a.variacao.estoque > 0) || !(a.variacao.preco > 0)) { faltou++; return; }
+      var atual = estado.carrinho.find(function (x) { return x.sku === a.variacao.sku; });
+      var qtd = Math.min(i.qty, a.variacao.estoque - (atual ? atual.qty : 0));
+      if (qtd <= 0) return;
+      if (atual) atual.qty += qtd;
+      else estado.carrinho.push({ sku: a.variacao.sku, qty: qtd, codigo: a.produto.codigo, nome: a.produto.nome, cor: a.variacao.cor, preco: a.variacao.preco, imagem: a.variacao.imagem || a.produto.imagem });
+      entrou++;
+    });
+    salvarCarrinho();
+    track('compra_novamente', { pedido: pedidoId, itens: entrou });
+    if (!entrou) { toast(faltou ? 'Os modelos deste pedido estão esgotados no momento.' : 'Esses itens já estão no carrinho.'); return; }
+    if (faltou) toast(faltou + ' ' + (faltou > 1 ? 'itens esgotaram' : 'item esgotou') + ' e não entrou no carrinho.', 4000);
+    navegar('/carrinho');
+  }
+  function avaliarItem(el) {
+    el.disabled = true;
+    apiConta('POST', { acao: 'avaliar', pedido: el.dataset.pedido, sku: el.dataset.sku })
+      .then(function (d) { navegar('/avaliar/' + d.token); })
+      .catch(function (e) { el.disabled = false; toast(h(e.message)); });
+  }
+  function favoritar(el) {
+    if (!sessaoLocal()) { toast('Entre na sua conta pra salvar favoritos.'); navegar('/entrar?voltar=' + encodeURIComponent(location.pathname + location.search)); return; }
+    var codigo = el.dataset.codigo;
+    var ligar = el.dataset.ligado !== '1';
+    el.disabled = true;
+    apiConta('POST', { acao: 'favorito', codigo: codigo, ligar: ligar }).then(function () {
+      if (estado.conta) {
+        var lista = estado.conta.favoritos = (estado.conta.favoritos || []).filter(function (c) { return String(c).toUpperCase() !== String(codigo).toUpperCase(); });
+        if (ligar) lista.unshift(String(codigo).toUpperCase());
+      }
+      track(ligar ? 'add_to_wishlist' : 'remove_from_wishlist', { item_id: codigo });
+      if (/^\/conta\/favoritos/.test(location.pathname)) { renderConta('favoritos', '', estado.conta); return; }
+      marcarFavorito(el, ligar);
+      toast(ligar ? 'Salvo nos favoritos. <a href="/conta/favoritos" data-link>Ver favoritos →</a>' : 'Removido dos favoritos.', 3000);
+    }).catch(function (e) { toast(h(e.message)); }).then(function () { el.disabled = false; });
+  }
+  function marcarFavorito(el, ligado) {
+    el.dataset.ligado = ligado ? '1' : '';
+    el.setAttribute('aria-pressed', ligado ? 'true' : 'false');
+    var t = el.querySelector('span'); if (t) t.textContent = ligado ? 'Nos favoritos' : 'Favoritar';
+  }
+  // Página do produto: acende o coração se o modelo já está nos favoritos.
+  function conferirFavorito(codigo) {
+    if (!sessaoLocal()) return;
+    var g = geracao;
+    carregarConta().then(function (d) {
+      if (g !== geracao) return;
+      var el = document.querySelector('[data-action="favoritar"][data-codigo="' + String(codigo).replace(/"/g, '') + '"]');
+      if (el) marcarFavorito(el, (d.favoritos || []).some(function (c) { return String(c).toUpperCase() === String(codigo).toUpperCase(); }));
+    }).catch(function () {});
+  }
+
+  // ---------------------------------------------------------------------------
   // Institucional
   // ---------------------------------------------------------------------------
   var PAGINAS = {
@@ -1533,6 +2008,18 @@
       else { inp.select(); document.execCommand('copy'); feito(); }
     }
     else if (acao === 'ja-paguei') { if (estado.pix) conferirPagamento(estado.pix.pedidoId, true); }
+    else if (acao === 'entrar-google') { entrarComGoogle(); }
+    else if (acao === 'modo-conta') { if (estado.entrarModo) estado.entrarModo(el.dataset.modo); }
+    else if (acao === 'sair') { sairDaConta(); }
+    else if (acao === 'favoritar') { favoritar(el); }
+    else if (acao === 'avaliar-item') { avaliarItem(el); }
+    else if (acao === 'comprar-novamente') { comprarNovamente(el.dataset.pedido); }
+    else if (acao === 'recarregar-conta') { rotear(); }
+    else if (acao === 'remover-cartao') {
+      if (!confirm('Remover este cartão da sua conta?')) return;
+      el.disabled = true;
+      apiConta('POST', { acao: 'remover-cartao', id: Number(el.dataset.id) }).then(function () { return carregarConta(true); }).then(function (d) { renderConta('pagamentos', '', d); toast('Cartão removido.'); }).catch(function (e) { el.disabled = false; toast(h(e.message)); });
+    }
   });
   // Toque/clique na foto do carrossel abre em tela cheia (um arrasto não conta como clique).
   var toqueFoto = null;
@@ -1608,5 +2095,8 @@
   var ano = document.getElementById('ano');
   if (ano) ano.textContent = String(new Date().getFullYear());
   atualizarBadge();
+  atualizarCabecalhoConta();
+  // Outra aba entrou/saiu: o cabeçalho acompanha.
+  window.addEventListener('storage', function (e) { if (e.key === CHAVE_SESSAO) { estado.conta = null; atualizarCabecalhoConta(); } });
   rotear();
 })();

@@ -45,6 +45,16 @@
   window.dataLayer = window.dataLayer || [];
   window.gtag = function () { window.dataLayer.push(arguments); };
   window.gtag('js', new Date());
+  // User-ID: cliente logado leva o id interno da conta (nunca e-mail/CPF) em todos os
+  // eventos, pra o GA4 juntar a navegação dele entre aparelhos. O app.js atualiza ao entrar/sair.
+  try {
+    var sb = JSON.parse(localStorage.getItem('sb-ilziprrnkabilgewxvqq-auth-token') || 'null');
+    if (sb && sb.user && /^[0-9a-f-]{36}$/.test(sb.user.id)) {
+      window.gtag('set', { user_id: sb.user.id });
+      window.gtag('set', 'user_properties', { tem_conta: 'sim' });
+      window.__saUserId = sb.user.id;
+    }
+  } catch (e) {}
   window.gtag('config', 'G-TMYDVM5TM1', { send_page_view: false });
   // Google Ads (remarketing e base pras conversões); usa o mesmo gtag.js do GA4
   window.gtag('config', 'AW-18408434452');
@@ -63,4 +73,5 @@
     t = l.createElement(r); t.async = 1; t.src = 'https://www.clarity.ms/tag/' + i;
     y = l.getElementsByTagName(r)[0]; y.parentNode.insertBefore(t, y);
   })(window, document, 'clarity', 'script', 'z71b3umyh3');
+  if (window.__saUserId) window.clarity('identify', window.__saUserId);
 })();

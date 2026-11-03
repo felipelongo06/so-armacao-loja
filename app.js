@@ -1495,8 +1495,16 @@
     // Sem a chave pública configurada, a loja segue sem login (nada de botão quebrado).
     document.documentElement.classList.toggle('sem-login', !AUTH.chave);
     var a = document.getElementById('nav-conta');
-    if (!a) return;
     var s = sessaoLocal();
+    // GA4 User-ID (e Clarity): só o id interno da conta, nunca e-mail. Saiu → limpa.
+    var uid = s && s.user && /^[0-9a-f-]{36}$/.test(s.user.id) ? s.user.id : null;
+    if (uid !== (window.__saUserId || null) && window.gtag) {
+      window.__saUserId = uid;
+      window.gtag('set', { user_id: uid });
+      window.gtag('set', 'user_properties', { tem_conta: uid ? 'sim' : null });
+      if (uid && window.clarity) window.clarity('identify', uid);
+    }
+    if (!a) return;
     a.innerHTML = s ? '<span class="ola">Olá, </span>' + h(primeiroNomeConta(s.user).slice(0, 14)) : 'Entrar';
   }
   function carregarScript(src) {
@@ -1966,6 +1974,7 @@
     privacidade: { t: 'Política de privacidade', d: 'Como a Só Armação coleta, usa e protege seus dados (LGPD).', b: [
       ['O que coletamos', 'Nome, CPF, e-mail, WhatsApp e endereço — o necessário pra processar o pedido, emitir a nota fiscal e entregar. Também usamos cookies e ferramentas de medição (Google Analytics, Google Ads, Meta e Microsoft Clarity) pra entender como a loja é usada e mostrar nossos anúncios pra quem já visitou o site. O Clarity registra cliques, rolagem e movimentos na página pra gente melhorar o site; o que você digita nos campos fica mascarado e não é gravado.'],
       ['Como usamos', 'Pra entregar seu pedido, emitir nota, calcular frete, confirmar o pagamento, conferir se é a sua primeira compra (pro desconto de 1ª compra, pelo CPF, e-mail e WhatsApp dos pedidos anteriores) e, se você autorizar, avisar sobre novidades. O CPF é guardado só de forma protegida (hash) no nosso banco.'],
+      ['Conta e login', 'Criar conta é opcional. Se você criar, guardamos seu nome, e-mail e senha (protegida, sem que ninguém da loja consiga ler) ou, no login com Google, o nome e o e-mail que o Google informa. Na conta ficam seus pedidos, favoritos e, se você pedir, o cartão salvo: o número do cartão fica com a instituição de pagamento (Asaas) e a gente só vê a bandeira e os 4 últimos números. Quando você está logado, as ferramentas de medição recebem um código interno da sua conta (nunca seu e-mail ou CPF), pra entendermos como o site é usado em diferentes aparelhos. Pra excluir a conta, escreva pra ' + CONFIG.email + '.'],
       ['Com quem compartilhamos', 'Só com quem precisa pra operação: a instituição de pagamento (Pix e cartão), a transportadora e o sistema emissor de nota fiscal. Não vendemos seus dados.'],
       ['Seus direitos (LGPD)', 'Você pode pedir acesso, correção ou exclusão dos seus dados a qualquer momento pelo e-mail ' + CONFIG.email + '.']] },
     termos: { t: 'Termos de uso', d: 'Condições de compra na Só Armação.', b: [

@@ -660,7 +660,28 @@ body.lupa-aberta { overflow: hidden; }
   .conta-menu a.ativo { background: var(--creme); color: var(--verde-escuro); }
   .conta-menu a:hover, .conta-menu button:hover { color: var(--verde-escuro); }
   .conta-destaques { grid-template-columns: 1.6fr 1fr; }
-  .conta-rapido { grid-template-columns: repeat(5, 1fr); }
+  .conta-rapido { grid-template-columns: repeat(3, 1fr); }
   .conta-duas { grid-template-columns: 1fr 1fr; }
   .status-nomes { font-size: 13px; }
 }
+@media (min-width: 1100px) { .conta-rapido { grid-template-columns: repeat(6, 1fr); } }
+/* atendimentos (tickets) */
+.conta-conteudo [hidden] { display: none !important; }
+.campo textarea { border: 2px solid var(--verde-escuro); border-radius: var(--raio); padding: 10px 12px; min-height: 120px; background: var(--branco); width: 100%; resize: vertical; }
+.campo textarea:focus { outline: 3px solid rgba(255,138,42,.5); outline-offset: 1px; }
+.pilula.atencao { background: #FFE6CF; color: var(--verde-escuro); }
+.atend-pedido .atend-link { padding: 10px 12px; border: 1px solid var(--creme-2); border-radius: 8px; color: var(--verde); font-weight: 700; text-decoration: none; }
+.atend-pedido .atend-link:hover { border-color: var(--verde-escuro); }
+.atend-item { grid-template-columns: auto minmax(0, 1fr) auto; }
+.atend-num { font-weight: 800; color: var(--laranja-escuro); min-width: 52px; }
+.atend-meta { justify-content: flex-start; color: var(--texto-suave); margin-top: -8px; }
+.atend-thread { list-style: none; display: grid; gap: 10px; }
+.atend-msg { justify-self: start; max-width: min(92%, 620px); padding: 12px 14px; border-radius: 12px 12px 12px 2px; background: var(--branco); border: 1px solid var(--creme-2); display: grid; gap: 4px; }
+.atend-msg.cliente { justify-self: end; background: #E4F3EA; border-color: #BFE0CB; border-radius: 12px 12px 2px 12px; }
+.atend-msg-topo { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px; font-size: 14px; }
+.atend-msg-topo small { color: var(--texto-suave); font-size: 12px; }
+.atend-msg p { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15px; }
+.atend-publico { max-width: 760px; padding-top: 24px; padding-bottom: 60px; }
+.atend-contato { margin-top: 28px; }
+.atend-contato h2 { margin: 0; }
+@media (max-width: 480px) { .atend-item { grid-template-columns: minmax(0, 1fr) auto; } .atend-num { grid-column: 1 / -1; } }

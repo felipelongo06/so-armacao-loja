@@ -51,6 +51,10 @@
       "destination": "/index.html"
     },
     {
+      "source": "/atendimento/:token",
+      "destination": "/index.html"
+    },
+    {
       "source": "/:pagina(entrar|conta)",
       "destination": "/index.html"
     },

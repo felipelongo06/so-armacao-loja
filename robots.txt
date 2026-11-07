@@ -6,6 +6,7 @@ Disallow: /pix
 Disallow: /confirmacao
 Disallow: /api/
 Disallow: /avaliar/
+Disallow: /atendimento/
 Disallow: /admin
 Disallow: /conta
 Disallow: /entrar

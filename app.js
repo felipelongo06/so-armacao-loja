@@ -435,7 +435,8 @@
     { re: /^\/avaliar\/([A-Za-z0-9_-]{20,64})\/?$/, view: viewAvaliar, nav: 'modelos', semCatalogo: true },
     { re: /^\/entrar\/?$/, view: viewEntrar, nav: 'conta' },
     { re: /^\/conta\/confirmar\/?$/, view: viewConfirmarConta, nav: 'conta' },
-    { re: /^\/conta(?:\/(compras|favoritos|avaliacoes|pagamentos))?(?:\/(SA-[A-Z0-9]+-[A-Z0-9]{4}))?\/?$/, view: viewConta, nav: 'conta' },
+    { re: /^\/conta(?:\/(compras|favoritos|avaliacoes|pagamentos|atendimentos))?(?:\/(SA-[A-Z0-9]+-[A-Z0-9]{4}|\d{1,9}))?\/?$/, view: viewConta, nav: 'conta' },
+    { re: /^\/atendimento\/([A-Za-z0-9_-]{20,128})\/?$/, view: viewAtendimento, nav: 'ajuda', semCatalogo: true },
     { re: /^\/(quem-somos|como-comprar|entrega|pagamento|trocas-e-devolucoes|privacidade|termos|contato)\/?$/, view: viewInstitucional, nav: 'ajuda' }
   ];
   var geracao = 0; // muda a cada rota: resposta atrasada de uma tela antiga não sobrescreve a atual
@@ -1772,7 +1773,8 @@
     ['compras', 'Minhas compras', 'M3 4h2l2.4 11.2a1 1 0 0 0 1 .8h9.2a1 1 0 0 0 1-.8L21 8H6M9 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm9 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2z'],
     ['favoritos', 'Favoritos', 'M12 20s-7-4.4-9-9a5 5 0 0 1 9-3 5 5 0 0 1 9 3c-2 4.6-9 9-9 9z'],
     ['avaliacoes', 'Minhas avaliações', 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z'],
-    ['pagamentos', 'Métodos de pagamento', 'M3 6h18v12H3zM3 10h18M7 15h4']
+    ['pagamentos', 'Métodos de pagamento', 'M3 6h18v12H3zM3 10h18M7 15h4'],
+    ['atendimentos', 'Atendimentos', 'M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2zM8 9h8M8 13h5']
   ];
   function iconeConta(d) { return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="' + d + '"/></svg>'; }
   function dataBr(iso, longa) { if (!iso) return ''; var d = new Date(iso); return longa ? d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: '2-digit' }).replace(/ de /g, ' ').replace('.', '') : d.toLocaleDateString('pt-BR'); }
@@ -1824,6 +1826,19 @@
       app.innerHTML = '<div class="container institucional"><h1 class="display">Não deu pra abrir sua conta.</h1><p>' + h(e.status === 403 ? e.message : traduzirErroAuth(e)) + '</p><p><button class="link" data-action="recarregar-conta">Tentar de novo</button></p></div>';
     });
   }
+  // Fim da página do pedido: atendimento em andamento (se houver) e o botão de pedir ajuda.
+  function ajudaPedidoHtml(p, ats) {
+    var abertos = ats.filter(function (t) { return t.pedido === p.id && t.status !== 'resolvido'; });
+    return '<div class="painel conta-bloco atend-pedido">' +
+      (abertos.length ? '<strong>Atendimento sobre este pedido</strong>' + abertos.map(function (t) {
+          return '<a class="conta-linha atend-link" href="/conta/atendimentos/' + encodeURIComponent(String(t.numero)) + '" data-link><span>Atendimento #' + h(t.numero) + ' · ' + h(t.status_rotulo || t.status) + '</span><span aria-hidden="true">→</span></a>';
+        }).join('') +
+        '<div><button type="button" class="btn btn-contorno btn-mini" data-action="atend-mostrar" data-alvo="atend-novo" aria-expanded="false" aria-controls="atend-novo">Abrir outro atendimento</button></div>'
+        : '<div><button type="button" class="btn btn-verde btn-mini" data-action="atend-mostrar" data-alvo="atend-novo" aria-expanded="false" aria-controls="atend-novo">Preciso de ajuda com este pedido</button></div>') +
+      '<div id="atend-novo" hidden>' + formAtendContaHtml(p.id) + '</div>' +
+      '</div>' +
+      '<p class="conta-ajuda">Troca grátis em até 7 dias úteis após o recebimento.</p>';
+  }
   function renderConta(aba, id, d) {
     var menu = '<aside class="conta-menu"><nav aria-label="Minha conta">' + MENU_CONTA.map(function (x) {
       return '<a href="/conta' + (x[0] ? '/' + x[0] : '') + '" data-link class="' + (x[0] === aba ? 'ativo' : '') + '">' + iconeConta(x[2]) + '<span>' + h(x[1]) + '</span></a>';
@@ -1872,7 +1887,7 @@
             '<div class="painel conta-bloco"><strong>Pagamento</strong><span>' + h(p.pagamento) + '</span></div>' +
             (p.entrega ? '<div class="painel conta-bloco"><strong>Entrega</strong><span>' + h(p.entrega) + '</span></div>' : '') +
           '</div>' +
-          '<p class="conta-ajuda">Precisa de ajuda com este pedido? Escreva pra <a href="mailto:' + h(CONFIG.email) + '?subject=' + encodeURIComponent('Pedido ' + p.id) + '">' + h(CONFIG.email) + '</a> com o número do pedido. Troca grátis em até 7 dias úteis após o recebimento.</p>';
+          ajudaPedidoHtml(p, atendimentosDaConta(d));
       }
     } else if (aba === 'compras') {
       corpo = '<h1 class="conta-titulo">Minhas compras</h1>' + (pedidos.length ? '<div class="conta-lista">' + pedidos.map(function (p) {
@@ -1897,6 +1912,23 @@
             '<span class="estrelas" aria-label="Nota ' + a.nota + ' de 5">' + estrelas(a.nota) + '</span><p>' + h(a.texto) + '</p><small>' + h(dataBr(a.data, true)) + '</small></div>';
         }).join('') + '</div>' : '<p class="conta-sub">Você ainda não avaliou nenhuma compra.</p>') +
         '<p class="conta-ajuda">Toda avaliação passa por uma conferência rápida antes de aparecer na loja. Publicamos as boas e as ruins.</p>';
+    } else if (aba === 'atendimentos' && id) {
+      var t = atendimentosDaConta(d).find(function (x) { return String(x.numero) === id; });
+      corpo = '<a class="link conta-voltar" href="/conta/atendimentos" data-link>← Atendimentos</a>' +
+        (!t ? '<h1 class="conta-titulo">Atendimento não encontrado</h1><p>Ele não está nesta conta. <a href="/conta/atendimentos" data-link>Ver meus atendimentos</a></p>'
+          : cabecalhoAtendHtml(t) + (t.pedido ? '<p class="conta-ajuda"><a href="/conta/compras/' + h(t.pedido) + '" data-link>Ver pedido ' + h(t.pedido) + ' →</a></p>' : '') +
+            threadAtendHtml(t) + respostaAtendHtml(t));
+    } else if (aba === 'atendimentos') {
+      var ats = atendimentosDaConta(d);
+      corpo = '<h1 class="conta-titulo">Atendimentos</h1><p class="conta-sub">Suas conversas com a nossa equipe. Respondemos em até 1 dia útil.</p>' +
+        '<div><button type="button" class="btn btn-verde btn-mini" data-action="atend-mostrar" data-alvo="atend-novo" aria-expanded="false" aria-controls="atend-novo">Novo atendimento</button></div>' +
+        '<div class="painel conta-bloco" id="atend-novo" hidden><strong>Novo atendimento</strong>' + formAtendContaHtml('', pedidos) + '</div>' +
+        (ats.length ? '<div class="conta-lista">' + ats.map(function (t) {
+          return '<a class="conta-pedido atend-item" href="/conta/atendimentos/' + encodeURIComponent(String(t.numero)) + '" data-link>' +
+            '<span class="atend-num">#' + h(t.numero) + '</span>' +
+            '<div class="conta-pedido-info"><strong>' + h(t.assunto) + '</strong><small>' + h(t.categoria_rotulo || t.categoria) + (t.pedido ? ' · Pedido ' + h(t.pedido) : '') + ' · atualizado em ' + h(dataBr(t.atualizado_em || t.criado_em, true)) + '</small></div>' +
+            pilulaAtend(t) + '</a>';
+        }).join('') + '</div>' : '<div class="painel"><p>Você ainda não abriu nenhum atendimento. Dúvida, troca ou problema com um pedido? Toque em <strong>Novo atendimento</strong>.</p></div>');
     } else if (aba === 'pagamentos') {
       corpo = '<h1 class="conta-titulo">Métodos de pagamento</h1>' +
         ((d.cartoes || []).length ? '<div class="conta-lista">' + d.cartoes.map(function (c) {
@@ -1969,6 +2001,236 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Atendimentos (tickets): na conta (/conta/atendimentos, via /api/conta) e pra quem
+  // não tem conta (/contato abre; /atendimento/:token acompanha, link que vai por e-mail).
+  // ---------------------------------------------------------------------------
+  var CATEGORIAS_ATEND = [
+    ['duvida', 'Dúvida'], ['troca', 'Troca'], ['devolucao', 'Devolução / reembolso'], ['atraso', 'Atraso na entrega'],
+    ['defeito', 'Produto com defeito'], ['pagamento', 'Pagamento'], ['nota_fiscal', 'Nota fiscal'], ['outro', 'Outro']
+  ];
+  var ATEND_MIN = 10, ATEND_MAX = 2000;
+  var RE_PEDIDO = /^SA-[A-Z0-9]+-[A-Z0-9]{4}$/;
+  function dataHoraBr(iso) {
+    var d = new Date(iso);
+    return isNaN(d) ? '' : d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+  }
+  function pilulaAtend(t) {
+    var cls = t.status === 'resolvido' ? ' ok' : t.status === 'aguardando_cliente' ? ' atencao' : '';
+    return '<span class="pilula' + cls + '">' + h(t.status_rotulo || t.status) + '</span>';
+  }
+  function campoMensagemAtend(rotulo) {
+    return '<div class="campo"><label for="at-mensagem">' + h(rotulo) + '</label>' +
+      '<textarea id="at-mensagem" name="mensagem" rows="5" minlength="' + ATEND_MIN + '" maxlength="' + ATEND_MAX + '" required data-contador="at-contador" aria-describedby="at-contador"></textarea>' +
+      '<span class="ajuda" id="at-contador">0 / ' + ATEND_MAX + ' (mínimo ' + ATEND_MIN + ')</span></div>';
+  }
+  function campoCategoriaAtend() {
+    return '<div class="campo"><label for="at-categoria">Assunto</label><select id="at-categoria" name="categoria" required>' +
+      '<option value="">Escolha o assunto</option>' +
+      CATEGORIAS_ATEND.map(function (c) { return '<option value="' + c[0] + '">' + h(c[1]) + '</option>'; }).join('') + '</select></div>';
+  }
+  // Formulário de abrir atendimento na conta. `pedido`: fixo (página do pedido);
+  // senão, `pedidos` vira um select opcional.
+  function formAtendContaHtml(pedido, pedidos) {
+    return '<form class="form-grid" data-action="atend-abrir" novalidate>' +
+      (pedido ? '<input type="hidden" name="pedido" value="' + h(pedido) + '">'
+        : '<div class="campo"><label for="at-pedido">Pedido (opcional)</label><select id="at-pedido" name="pedido"><option value="">Não é sobre um pedido específico</option>' +
+          (pedidos || []).map(function (p) { return '<option value="' + h(p.id) + '">' + h(p.id) + ' · ' + h(dataBr(p.criado_em, true)) + '</option>'; }).join('') + '</select></div>') +
+      campoCategoriaAtend() +
+      campoMensagemAtend('Conte o que aconteceu') +
+      '<div class="atend-aviso" role="alert"></div>' +
+      '<button class="btn btn-verde btn-mini" type="submit">Enviar</button>' +
+    '</form>';
+  }
+  function threadAtendHtml(t) {
+    return '<ol class="atend-thread">' + (t.mensagens || []).map(function (m) {
+      var equipe = m.de === 'equipe';
+      return '<li class="atend-msg ' + (equipe ? 'equipe' : 'cliente') + '"><div class="atend-msg-topo"><strong>' + h(m.nome || (equipe ? 'Só Armação' : 'Você')) + '</strong><small>' + h(dataHoraBr(m.em)) + '</small></div>' +
+        '<p>' + h(m.texto) + '</p></li>';
+    }).join('') + '</ol>';
+  }
+  // Responder: na conta vai pelo número; pra visitante, pelo token do link.
+  function respostaAtendHtml(t, token) {
+    return '<div class="painel conta-bloco"><strong>Responder</strong>' +
+      (t.status === 'resolvido' ? '<div class="aviso info">Este atendimento foi resolvido. Respondendo, ele é reaberto.</div>' : '') +
+      '<form class="form-grid" data-action="atend-responder" ' + (token ? 'data-token="' + h(token) + '"' : 'data-numero="' + h(t.numero) + '"') + ' novalidate>' +
+        campoMensagemAtend('Sua mensagem') +
+        '<div class="atend-aviso" role="alert"></div>' +
+        '<button class="btn btn-verde btn-mini" type="submit">Enviar resposta</button>' +
+      '</form></div>';
+  }
+  function cabecalhoAtendHtml(t) {
+    return '<h1 class="conta-titulo">Atendimento #' + h(t.numero) + ' · ' + h(t.assunto) + '</h1>' +
+      '<div class="conta-linha atend-meta">' + pilulaAtend(t) + '<span>' + h(t.categoria_rotulo || t.categoria) +
+        (t.pedido ? ' · Pedido ' + h(t.pedido) : '') + ' · aberto em ' + h(dataBr(t.criado_em, true)) + '</span></div>';
+  }
+  function atendimentosDaConta(d) { return (d && Array.isArray(d.atendimentos)) ? d.atendimentos : []; }
+  function guardarAtendNaConta(t) {
+    if (!estado.conta || !t) return;
+    estado.conta.atendimentos = [t].concat(atendimentosDaConta(estado.conta).filter(function (x) { return String(x.numero) !== String(t.numero); }));
+  }
+  function avisoAtend(form, txt) {
+    var el = form.querySelector('.atend-aviso');
+    if (el) el.innerHTML = txt ? '<div class="aviso erro">' + h(txt) + '</div>' : '';
+    else if (txt) toast(h(txt));
+  }
+  function travarAtend(form, sim) {
+    var b = form.querySelector('button[type="submit"]');
+    if (!b) return;
+    if (sim) { b.dataset.rotulo = b.textContent; b.textContent = 'Enviando…'; }
+    else if (b.dataset.rotulo) b.textContent = b.dataset.rotulo;
+    b.disabled = !!sim;
+  }
+  function campoForm(form, nome) { var el = form.elements.namedItem(nome); return el ? String(el.value || '').trim() : ''; }
+  function validarMensagemAtend(form) {
+    var msg = campoForm(form, 'mensagem');
+    if (msg.length < ATEND_MIN) return 'Escreva um pouco mais (mínimo de ' + ATEND_MIN + ' caracteres).';
+    if (msg.length > ATEND_MAX) return 'A mensagem passou de ' + ATEND_MAX + ' caracteres.';
+    return '';
+  }
+  // Chamada pública (sem conta): /api/atendimento
+  function apiAtendimento(metodo, corpo, qs, token) {
+    var headers = { 'Content-Type': 'application/json' };
+    if (token) headers.Authorization = 'Bearer ' + token;
+    return fetch(CONFIG.api + '/api/atendimento' + (qs || ''), { method: metodo, headers: headers, body: corpo ? JSON.stringify(corpo) : undefined })
+      .catch(function () { throw new Error('Sem conexão agora. Tente de novo em instantes.'); })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { if (!r.ok) { var e = new Error(d.erro || 'Não foi possível concluir agora. Tente de novo.'); e.status = r.status; throw e; } return d; }); });
+  }
+  function abrirAtendConta(form) {
+    var corpo = { acao: 'ticket-abrir', pedido: campoForm(form, 'pedido'), categoria: campoForm(form, 'categoria'), mensagem: campoForm(form, 'mensagem') };
+    var erro = !corpo.categoria ? 'Escolha o assunto.' : validarMensagemAtend(form);
+    if (erro) { avisoAtend(form, erro); return; }
+    avisoAtend(form, '');
+    travarAtend(form, true);
+    apiConta('POST', corpo).then(function (d) {
+      var t = d && d.atendimento;
+      guardarAtendNaConta(t);
+      track('atendimento_aberto', { categoria: corpo.categoria, origem: 'conta' });
+      toast(t ? 'Atendimento #' + h(t.numero) + ' aberto. Respondemos em até 1 dia útil.' : 'Atendimento aberto.', 4000);
+      navegar(t ? '/conta/atendimentos/' + encodeURIComponent(String(t.numero)) : '/conta/atendimentos');
+    }).catch(function (e) { travarAtend(form, false); avisoAtend(form, e.message); });
+  }
+  function responderAtend(form) {
+    var erro = validarMensagemAtend(form);
+    if (erro) { avisoAtend(form, erro); return; }
+    avisoAtend(form, '');
+    travarAtend(form, true);
+    var mensagem = campoForm(form, 'mensagem');
+    var token = form.dataset.token;
+    var envio = token
+      ? apiAtendimento('POST', { acao: 'responder', token: token, mensagem: mensagem })
+      : apiConta('POST', { acao: 'ticket-responder', numero: Number(form.dataset.numero), mensagem: mensagem }).then(function (d) { return d.atendimento; });
+    var g = geracao;
+    envio.then(function (t) {
+      track('atendimento_resposta', { origem: token ? 'link' : 'conta' });
+      if (g !== geracao) return;
+      toast('Resposta enviada.');
+      if (token) { renderAtendPublico(t, token); return; }
+      guardarAtendNaConta(t);
+      renderConta('atendimentos', String(t ? t.numero : form.dataset.numero), estado.conta);
+    }).catch(function (e) { travarAtend(form, false); avisoAtend(form, e.message); });
+  }
+  // /contato: formulário de abrir atendimento (com ou sem conta).
+  function formContatoHtml(pf) {
+    var campo = function (nome, rotulo, valor, attrs, ajuda) {
+      return '<div class="campo"><label for="ct-' + nome + '">' + h(rotulo) + '</label><input id="ct-' + nome + '" name="' + nome + '" value="' + h(valor || '') + '" ' + attrs + '>' + (ajuda ? '<span class="ajuda">' + h(ajuda) + '</span>' : '') + '</div>';
+    };
+    return '<section class="painel atend-contato" id="atend-contato" aria-labelledby="atend-contato-titulo">' +
+      '<h2 id="atend-contato-titulo">Abrir um atendimento</h2>' +
+      '<p class="conta-ajuda">Respondemos em até 1 dia útil. Você recebe um link por e-mail pra acompanhar e responder.</p>' +
+      '<form class="form-grid" data-action="atend-contato" novalidate>' +
+        '<div class="dupla">' + campo('nome', 'Nome', pf.nome, 'autocomplete="name" required maxlength="80"') +
+          campo('email', 'E-mail', pf.email, 'type="email" inputmode="email" autocomplete="email" required maxlength="120"') + '</div>' +
+        '<div class="dupla">' + campo('telefone', 'WhatsApp (opcional)', pf.telefone ? mascara('tel', pf.telefone) : '', 'type="tel" inputmode="tel" autocomplete="tel" maxlength="16" data-mascara="tel"') +
+          campo('pedido', 'Número do pedido (opcional)', '', 'placeholder="SA-XXXX-XXXX" autocapitalize="characters" autocomplete="off" maxlength="20"') + '</div>' +
+        campoCategoriaAtend() +
+        campoMensagemAtend('Mensagem') +
+        '<div class="isca" aria-hidden="true"><label>Site <input name="site" tabindex="-1" autocomplete="off"></label></div>' +
+        '<div class="atend-aviso" role="alert"></div>' +
+        '<button class="btn btn-laranja" type="submit">Enviar</button>' +
+      '</form></section>';
+  }
+  function perfilContato() {
+    var pf = (estado.conta && estado.conta.perfil) || {};
+    var s = sessaoLocal();
+    var u = (s && s.user) || {}, meta = u.user_metadata || {};
+    return { nome: pf.nome || meta.full_name || meta.name || '', email: pf.email || u.email || '', telefone: pf.telefone || '' };
+  }
+  // Logado: o perfil completo (WhatsApp) vem da conta; preenche só o que ainda está vazio.
+  function preencherContatoDaConta() {
+    if (!sessaoLocal()) return;
+    var g = geracao;
+    carregarConta().then(function () {
+      var form = g === geracao && document.querySelector('form[data-action="atend-contato"]');
+      if (!form) return;
+      var pf = perfilContato();
+      ['nome', 'email', 'telefone'].forEach(function (k) {
+        var el = form.elements.namedItem(k);
+        if (el && !el.value && pf[k]) el.value = k === 'telefone' ? mascara('tel', pf[k]) : pf[k];
+      });
+    }).catch(function () {});
+  }
+  function abrirAtendContato(form) {
+    var corpo = {
+      acao: 'abrir', nome: campoForm(form, 'nome'), email: campoForm(form, 'email').toLowerCase(), telefone: campoForm(form, 'telefone'),
+      pedido: campoForm(form, 'pedido').toUpperCase(), categoria: campoForm(form, 'categoria'), mensagem: campoForm(form, 'mensagem'),
+      site: String((form.elements.namedItem('site') || {}).value || '')
+    };
+    var tel = digitos(corpo.telefone);
+    var erro = corpo.nome.length < 2 ? 'Digite seu nome.'
+      : !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(corpo.email) ? 'Digite um e-mail válido.'
+      : tel && (tel.length < 10 || tel.length > 11) ? 'Confira o WhatsApp com DDD (ou deixe em branco).'
+      : corpo.pedido && !RE_PEDIDO.test(corpo.pedido) ? 'Confira o número do pedido (ex.: SA-K3J9-2201) ou deixe em branco.'
+      : !corpo.categoria ? 'Escolha o assunto.'
+      : validarMensagemAtend(form);
+    if (erro) { avisoAtend(form, erro); return; }
+    avisoAtend(form, '');
+    travarAtend(form, true);
+    var g = geracao;
+    // Logado: manda o token junto, pro backend ligar o atendimento à conta.
+    tokenConta().catch(function () { return null; }).then(function (t) {
+      return apiAtendimento('POST', corpo, '', t).then(function (d) { return { d: d, logado: !!t }; });
+    }).then(function (res) {
+      track('atendimento_aberto', { categoria: corpo.categoria, origem: res.logado ? 'contato_conta' : 'contato' });
+      if (g !== geracao) return;
+      var box = document.getElementById('atend-contato');
+      if (!box) return;
+      var num = res.d.numero;
+      box.innerHTML = '<h2>Recebemos!</h2><div class="aviso ok" role="status">Seu atendimento é o #' + h(num) + '. ' +
+        (res.logado ? 'Acompanhe e responda em <a href="/conta/atendimentos/' + encodeURIComponent(String(num)) + '" data-link>Minha conta › Atendimentos</a>.'
+          : res.d.email_enviado === false ? 'Não conseguimos enviar o e-mail com o link agora, mas a nossa resposta chega em ' + h(corpo.email) + '.'
+          : 'Enviamos o link para acompanhar em ' + h(corpo.email) + '.') + '</div>' +
+        '<p class="conta-ajuda">Respondemos em até 1 dia útil. Não achou o e-mail? Veja a caixa de spam.</p>';
+      if (res.logado) estado.conta = null; // a lista da conta vem de novo do servidor
+      box.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }).catch(function (e) { travarAtend(form, false); avisoAtend(form, e.message); });
+  }
+  // /atendimento/:token — quem abriu sem conta acompanha pelo link do e-mail.
+  function viewAtendimento(m) {
+    titulo('Atendimento');
+    naoIndexar(true);
+    var token = m[1];
+    var g = geracao;
+    app.innerHTML = '<div class="container"><div class="carregando"><span class="spinner"></span> Carregando…</div></div>';
+    apiAtendimento('GET', null, '?token=' + encodeURIComponent(token)).then(function (t) {
+      if (g !== geracao) return;
+      renderAtendPublico(t, token);
+    }).catch(function (e) {
+      if (g !== geracao) return;
+      var naoAchou = e.status === 404 || e.status === 400 || e.status === 410;
+      app.innerHTML = '<div class="container confirmacao"><h1 class="display">' + (naoAchou ? 'Atendimento não encontrado.' : 'Ops.') + '</h1>' +
+        '<p>' + (naoAchou ? 'O link pode estar incompleto ou ter expirado.' : h(e.message)) + ' Se precisar, abra um novo atendimento que a gente responde rapidinho.</p>' +
+        '<a class="btn btn-laranja" href="/contato" data-link>Falar com a gente</a></div>';
+    });
+  }
+  function renderAtendPublico(t, token) {
+    if (!t || !t.numero) { app.innerHTML = '<div class="container confirmacao"><h1 class="display">Ops.</h1><p>Não conseguimos abrir este atendimento.</p><a class="btn btn-laranja" href="/contato" data-link>Falar com a gente</a></div>'; return; }
+    titulo('Atendimento #' + t.numero);
+    app.innerHTML = '<div class="container conta-conteudo atend-publico">' + cabecalhoAtendHtml(t) +
+      threadAtendHtml(t) + respostaAtendHtml(t, token) +
+      '<p class="conta-ajuda">Tem conta na loja com este e-mail? Seus atendimentos também ficam em <a href="/conta/atendimentos" data-link>Minha conta</a>.</p></div>';
+  }
+
+  // ---------------------------------------------------------------------------
   // Institucional
   // ---------------------------------------------------------------------------
   var PAGINAS = {
@@ -2026,7 +2288,8 @@
     titulo(pg.t, pg.d);
     app.innerHTML = '<div class="container institucional"><nav class="migalhas"><a href="/" data-link>Início</a> › <a href="/ajuda" data-link>Ajuda</a> › <span>' + h(pg.t) + '</span></nav><h1 class="display">' + h(pg.t) + '</h1>' +
       pg.b.map(function (b) { return (b[0] ? '<h2>' + h(b[0]) + '</h2>' : '') + '<p>' + h(b[1]) + '</p>'; }).join('') +
-      '<p style="margin-top:24px"><a class="btn btn-laranja" href="/modelos" data-link>Ver modelos</a></p></div>';
+      (m[1] === 'contato' ? formContatoHtml(perfilContato()) : '<p style="margin-top:24px"><a class="btn btn-laranja" href="/modelos" data-link>Ver modelos</a></p>') + '</div>';
+    if (m[1] === 'contato') preencherContatoDaConta();
   }
 
   // ---------------------------------------------------------------------------
@@ -2090,6 +2353,10 @@
     else if (acao === 'avaliar-item') { avaliarItem(el); }
     else if (acao === 'comprar-novamente') { comprarNovamente(el.dataset.pedido); }
     else if (acao === 'recarregar-conta') { rotear(); }
+    else if (acao === 'atend-mostrar') {
+      var alvo = document.getElementById(el.dataset.alvo);
+      if (alvo) { alvo.hidden = false; el.setAttribute('aria-expanded', 'true'); el.hidden = true; var foco = alvo.querySelector('select, textarea'); if (foco) foco.focus(); }
+    }
     else if (acao === 'remover-cartao') {
       if (!confirm('Remover este cartão da sua conta?')) return;
       el.disabled = true;
@@ -2147,6 +2414,9 @@
   });
   document.addEventListener('submit', function (e) {
     var form = e.target;
+    if (form.matches('[data-action="atend-abrir"]')) { e.preventDefault(); abrirAtendConta(form); return; }
+    if (form.matches('[data-action="atend-responder"]')) { e.preventDefault(); responderAtend(form); return; }
+    if (form.matches('[data-action="atend-contato"]')) { e.preventDefault(); abrirAtendContato(form); return; }
     if (form.matches('[data-action="cep"]')) {
       e.preventDefault();
       var cep = mascara('cep', form.cep.value);
@@ -2160,6 +2430,11 @@
   document.addEventListener('input', function (e) {
     var el = e.target;
     if (el.matches('#cep')) el.value = mascara('cep', el.value);
+    else if (el.matches('input[data-mascara="tel"]')) el.value = mascara('tel', el.value);
+    else if (el.matches('textarea[data-contador]')) {
+      var cont = document.getElementById(el.dataset.contador), n = el.value.trim().length;
+      if (cont) cont.textContent = n + ' / ' + ATEND_MAX + (n < ATEND_MIN ? ' (mínimo ' + ATEND_MIN + ')' : '');
+    }
   });
   window.addEventListener('popstate', rotear);
   window.addEventListener('beforeunload', function () {

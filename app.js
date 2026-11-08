@@ -780,11 +780,11 @@
       '<div class="fita"></div>' +
       '<section class="beneficios"><div class="container">' +
         beneficio('qualidade', 'A melhor qualidade') + beneficio('preco', 'O menor preço') + beneficio('online', '100% online, 0% vitrine') + beneficio('troca', 'Troca grátis em até 7 dias úteis') +
-      '</div></section>' + secaoLentes() +
+      '</div></section>' +
       '<section class="secao" id="modelos"><div class="container">' +
         '<div class="secao-titulo"><h2 class="display">Todos os modelos</h2><span class="contagem" id="contagem">' + h(grade.rotulo) + '</span></div>' +
         blocoFiltros(q, grade.total) + '<div id="grade">' + grade.html + '</div>' +
-      '</div></section>' +
+      '</div></section>' + secaoLentes() +
       '<section class="leve2"><div class="container">' +
         '<h2 class="display">A 2ª armação sai com <em>-' + l2 + '%.</em></h2>' +
         '<p>Levando 2 no mesmo pedido, a 2ª sai com ' + l2 + '% de desconto — é o único desconto da loja, e aparece sozinho no carrinho. O frete é um só pro pedido inteiro. Uma pro trampo, uma pro rolê.</p>' +

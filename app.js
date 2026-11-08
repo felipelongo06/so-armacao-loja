@@ -780,7 +780,7 @@
       '<div class="fita"></div>' +
       '<section class="beneficios"><div class="container">' +
         beneficio('qualidade', 'A melhor qualidade') + beneficio('preco', 'O menor preço') + beneficio('online', '100% online, 0% vitrine') + beneficio('troca', 'Troca grátis em até 7 dias úteis') +
-      '</div></section>' +
+      '</div></section>' + secaoLentes() +
       '<section class="secao" id="modelos"><div class="container">' +
         '<div class="secao-titulo"><h2 class="display">Todos os modelos</h2><span class="contagem" id="contagem">' + h(grade.rotulo) + '</span></div>' +
         blocoFiltros(q, grade.total) + '<div id="grade">' + grade.html + '</div>' +
@@ -797,7 +797,7 @@
           passo(1, 'Escolha a armação', 'Filtre por formato e cor. Todas as medidas estão na página do modelo.') +
           passo(2, 'Adicione ao carrinho', 'Levando 2, a 2ª sai com -' + l2 + '%. O frete é calculado pelo seu CEP.') +
           passo(3, 'Pague no Pix ou cartão', 'No Pix a confirmação é automática, em segundos. No cartão, dá pra parcelar.') +
-          passo(4, 'Receba em casa', 'Postagem com rastreio e nota fiscal. Não serviu? Troca grátis em até 7 dias úteis.') +
+          passo(4, 'Receba e leve à ótica', 'Chega com rastreio e nota fiscal. Aí é só levar à sua ótica, com a receita, para colocar as lentes de grau.') +
         '</div>' +
       '</div></section>' +
       '<section class="secao faq"><div class="container">' +
@@ -813,11 +813,32 @@
     };
     return '<div class="beneficio">' + icones[tipo] + '<span>' + h(texto) + '</span></div>';
   }
+  // Vendemos só a armação: lente de grau é com a ótica do cliente. Aparece onde ele decide a compra.
+  var ICONE_LENTES = '<svg viewBox="0 0 40 40" fill="none" stroke="#06301B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="22" r="7"/><circle cx="29" cy="22" r="7"/><path d="M18 21.5c1.3-1.3 2.7-1.3 4 0M4 20l2-7M36 20l-2-7"/><path d="M8.5 19.5l5 5M26.5 19.5l5 5" stroke="#E5741A"/></svg>';
+  function avisoLentes(sol) {
+    var titulo = sol ? 'Vem com lentes de sol, sem grau.' : 'Vendemos só a armação: ela vem sem lentes de grau.';
+    var texto = sol
+      ? 'Precisa de grau? Leve à ótica da sua preferência com a sua receita e peça para colocarem as lentes do seu grau.'
+      : 'Quando chegar, leve à ótica da sua preferência com a sua receita (ou faça lá o exame de vista) e peça para colocarem as lentes de grau.';
+    return '<div class="aviso-lentes" role="note">' + ICONE_LENTES + '<p><strong>' + h(titulo) + '</strong>' + h(texto) + ' <a href="/como-comprar" data-link>Como funciona</a></p></div>';
+  }
+  function secaoLentes() {
+    return '<section class="lentes" aria-labelledby="lentes-titulo"><div class="container">' +
+      '<div class="lentes-texto"><span class="lentes-tag">Importante</span>' +
+        '<h2 class="display" id="lentes-titulo">Vendemos a armação. A lente de grau é com a sua ótica.</h2>' +
+        '<p>Nenhum dos nossos produtos vem com lentes de grau. Você compra a armação aqui, pelo preço justo, e coloca as lentes onde preferir.</p></div>' +
+      '<ol class="lentes-passos">' +
+        '<li><b>1</b><span><strong>Compre a armação</strong>Escolha o modelo aqui no site e receba em casa.</span></li>' +
+        '<li><b>2</b><span><strong>Leve à sua ótica</strong>Com a sua receita em mãos. Sem receita? Faça o exame de vista antes.</span></li>' +
+        '<li><b>3</b><span><strong>A ótica coloca as lentes</strong>Peça para colocarem as lentes do seu grau na armação que você comprou.</span></li>' +
+      '</ol></div></section>';
+  }
   function passo(n, t, d) { return '<div class="passo-compra"><div class="n">' + n + '</div><h3>' + h(t) + '</h3><p>' + h(d) + '</p></div>'; }
   function faq() {
     var l2 = estado.regras.leve2_pct;
     var itens = [
-      ['A armação vem com as lentes?', 'Não — vendemos só a armação, que é o que encarece na ótica. Você leva a nossa armação pra colocar as lentes do seu grau na ótica ou no laboratório da sua confiança.'],
+      ['A armação vem com lentes de grau?', 'Não. Nenhum dos nossos produtos vem com lentes de grau: vendemos só a armação (os óculos de sol vêm com lentes solares, sem grau). Quando a armação chegar, leve à ótica da sua preferência com a sua receita, ou faça o exame de vista, e peça para colocarem as lentes do seu grau.'],
+      ['Vocês fazem exame de vista ou montam os óculos?', 'Não. A gente não faz exame de vista, não vende lentes de grau e não monta óculos. Quem coloca as lentes é a ótica que você escolher. Dica: confira as medidas da armação na página do modelo e compare com um óculos que já serve bem em você.'],
       ['Como funciona a troca grátis?', 'Compra online tem direito de arrependimento: em até 7 dias úteis depois de receber, se não serviu, não gostou ou mudou de ideia, a gente troca por outro modelo ou devolve o dinheiro — sem custo, você não paga o frete da devolução. Depois desse prazo, a troca é só por defeito de fabricação.'],
       ['Quanto tempo demora pra chegar?', 'Até 3 dias úteis na Grande São Paulo e até 5 dias úteis pro resto do Brasil, contados da confirmação do pagamento. O código de rastreio chega no seu e-mail.'],
       ['Como funciona o desconto da 2ª armação?', 'Levando 2 armações no mesmo pedido, a 2ª (a de menor valor) sai com ' + l2 + '% de desconto. É o único desconto da loja e aparece sozinho no carrinho. A cada 2 armações, uma sai com ' + l2 + '% off.'],
@@ -909,6 +930,7 @@
               return '<a class="cor-opcao' + (x.sku === v.sku ? ' ativo' : '') + (x.estoque > 0 ? '' : ' esgotado') + '" href="' + h(x.url) + '" data-link title="' + h(x.cor) + '">' + (x.imagem ? '<img src="' + h(foto(x.imagem)) + '" alt="">' : '') + '<span>' + h(x.cor) + (x.tipo === 'sol' ? ' <small>(sol)</small>' : '') + '</span></a>';
             }).join('') + '</div></div>' : (v.cor ? '<div class="cores"><span class="rotulo">Cor: ' + h(v.cor) + '</span></div>' : '')) +
           (esgotado ? '<p class="estoque-aviso zero">Essa cor está esgotada no momento.</p>' : (v.estoque <= 5 ? '<p class="estoque-aviso">' + rotuloEstoque(v.estoque) + ' em estoque.</p>' : '')) +
+          avisoLentes(v.tipo === 'sol') +
           '<div class="acoes">' +
             '<button class="btn btn-laranja btn-bloco" data-action="comprar" data-sku="' + h(v.sku) + '"' + (esgotado ? ' disabled' : '') + '>Comprar agora</button>' +
             '<button class="btn btn-contorno btn-bloco" data-action="adicionar" data-sku="' + h(v.sku) + '"' + (esgotado ? ' disabled' : '') + '>Adicionar ao carrinho</button>' +
@@ -921,7 +943,7 @@
             (med.haste ? '<tr><th>Haste</th><td>' + med.haste + ' mm</td></tr>' : '') +
             (med.frontal ? '<tr><th>Largura frontal</th><td>' + med.frontal + ' mm</td></tr>' : '') +
             (p.peso_gramas ? '<tr><th>Peso</th><td>' + p.peso_gramas + ' g</td></tr>' : '') +
-            '<tr><th>Tipo</th><td>' + h(v.tipo === 'sol' ? 'Óculos de sol' : 'Óculos de grau (armação, sem as lentes)') + '</td></tr>' +
+            '<tr><th>Tipo</th><td>' + h(v.tipo === 'sol' ? 'Óculos de sol' : 'Armação para óculos de grau (vem sem lentes)') + '</td></tr>' +
             (p.material ? '<tr><th>Material</th><td>' + h(p.material) + '</td></tr>' : '') +
             (p.genero ? '<tr><th>Gênero</th><td>' + h(p.genero) + '</td></tr>' : '') +
             '<tr><th>Código</th><td>' + h(v.sku) + '</td></tr>' +
@@ -1191,6 +1213,7 @@
           (resumo && resumo.endereco ? '<p class="endereco-resolvido">' + h([resumo.endereco.logradouro, resumo.endereco.bairro, resumo.endereco.cidade ? resumo.endereco.cidade + '/' + resumo.endereco.uf : ''].filter(Boolean).join(', ')) + '</p>' : '') +
           (carregando ? '' : seletorFreteHtml(resumo ? resumo.resumo : null)) +
           (carregando ? '<p class="endereco-resolvido"><span class="spinner"></span> Calculando…</p>' : resumoHtml(resumo ? Object.assign({}, resumo.resumo, { endereco: undefined }) : null) + nota1aHtml(resumo ? { resumo: resumo.resumo } : null, false)) +
+          avisoLentes(false) +
           '<a class="btn btn-laranja btn-bloco" href="/checkout" data-link' + (erro ? ' aria-disabled="true" style="pointer-events:none;opacity:.55"' : '') + '>Fechar pedido →</a>' +
           '<p class="endereco-resolvido">Pix aprovado na hora · cartão em até 6x · nota fiscal · troca grátis em até 7 dias úteis</p>' +
         '</div></div></div>';
@@ -1282,6 +1305,7 @@
             '</div>' +
             (f.metodo === 'CREDIT_CARD' && logado ? '<label class="salvar-cartao"><input type="checkbox" name="salvar_cartao"' + (f.salvar_cartao !== false ? ' checked' : '') + '><span>Salvar este cartão para as próximas compras <small>O cartão fica guardado com o Asaas; a gente só vê a bandeira e o final.</small></span></label>' : '') +
             (aviso ? '<div class="aviso erro">' + h(aviso) + '</div>' : '') +
+            avisoLentes(false) +
             '<button class="btn btn-laranja btn-bloco" type="submit"' + (enviando || !r ? ' disabled' : '') + '>' + (enviando ? (cartaoEscolhido() ? 'Pagando…' : 'Gerando pagamento…') : (cartaoEscolhido() ? 'Pagar com final ' + h(cartaoEscolhido().final || '') : f.metodo === 'CREDIT_CARD' ? 'Pagar no cartão' : 'Pagar no Pix')) + (r ? ' · ' + h(fmt(r.total)) : '') + '</button>' +
             '<p class="ajuda" style="font-size:12px;color:var(--texto-suave)">Ao pagar, você concorda com os <a href="/termos" data-link>termos de uso</a> e a <a href="/privacidade" data-link>política de privacidade</a>.</p>' +
           '</div>' +
@@ -1492,6 +1516,7 @@
         (pago ? '<div class="selo-ok">✓</div><h1 class="display">Pedido confirmado!</h1>' +
           '<p>Pedido <strong>' + h(pedidoId) + '</strong>' + (pendente.total ? ' · ' + h(fmt(pendente.total)) : '') + '</p>' +
           '<p>Nota fiscal e código de rastreio chegam no seu e-mail. Prazo de entrega: <strong>' + h(pendente.prazo || 'até 5 dias úteis') + '</strong> a partir de agora.</p>' +
+          '<p>Quando a armação chegar, é só levar à ótica da sua preferência com a sua receita para colocarem as lentes de grau.</p>' +
           '<p class="endereco-resolvido">Dúvida? Escreva pra ' + h(CONFIG.email) + ' com o número do pedido.</p>' +
           '<a class="btn btn-laranja" href="/modelos" data-link>Continuar comprando</a>'
         : erro ? '<h1 class="display">Não achamos esse pedido.</h1><p>Confere o número ou fale com a gente: ' + h(CONFIG.email) + '.</p><a class="btn btn-contorno" href="/carrinho" data-link>Voltar ao carrinho</a>'
@@ -2254,11 +2279,13 @@
       ['', 'Somos 100% online. Vendemos só a armação — você coloca as lentes do seu grau na ótica ou no laboratório da sua confiança. Preço baixo todo dia, sem promoção de mentira. Nota fiscal em todo pedido e troca grátis em até 7 dias úteis, com troca e devolução seguindo o Código de Defesa do Consumidor.'],
       ['', 'Ninguém faz melhor por menos.']] },
     'como-comprar': { t: 'Como comprar', d: 'Passo a passo pra comprar sua armação na Só Armação.', b: [
+      ['Antes de tudo: vendemos só a armação', 'Nenhum dos nossos produtos vem com lentes de grau. Você compra a armação aqui e uma ótica da sua escolha coloca as lentes do seu grau. Os óculos de sol vêm com lentes solares, sem grau.'],
       ['1 — Escolha a armação', 'Navegue pelos modelos e use os filtros de formato e cor. Todas as medidas (lente, ponte, haste e largura frontal) estão na página de cada modelo — compare com um óculos que já serve bem em você.'],
       ['2 — Adicione ao carrinho', 'Levando 2 armações no mesmo pedido, a 2ª (a de menor valor) sai com 30% de desconto — é o único desconto da loja. O frete é um só pro pedido inteiro e é calculado pelo seu CEP.'],
       ['3 — Informe seus dados', 'Nome, CPF, e-mail, WhatsApp, CEP e número. O endereço é preenchido sozinho a partir do CEP.'],
       ['4 — Pague no Pix ou no cartão', 'No Pix, escaneie o QR Code ou copie o código: a confirmação é automática, em segundos. No cartão de crédito, o pagamento abre numa página segura da operadora e você pode parcelar.'],
-      ['5 — Receba em casa', 'Até 3 dias úteis na Grande São Paulo e até 5 dias úteis pro resto do Brasil, contados da confirmação do pagamento. O rastreio chega no seu e-mail.']] },
+      ['5 — Receba em casa', 'Até 3 dias úteis na Grande São Paulo e até 5 dias úteis pro resto do Brasil, contados da confirmação do pagamento. O rastreio chega no seu e-mail.'],
+      ['6 — Leve à sua ótica', 'A armação chega sem lentes de grau. Leve à ótica da sua preferência com a sua receita (ou faça o exame de vista) e peça para colocarem as lentes do seu grau. Se quiser trocar ou devolver no prazo de 7 dias úteis, faça isso antes de colocar as lentes.']] },
     entrega: { t: 'Entrega e frete', d: 'Prazos, valor do frete e rastreio dos pedidos da Só Armação.', b: [
       ['Prazo', 'Até 3 dias úteis na Grande São Paulo e até 5 dias úteis pra todo o Brasil, contados a partir da confirmação do pagamento.'],
       ['Valor', 'Calculado pelo seu CEP, direto no carrinho, antes de você pagar. Levando 2 ou mais armações, o frete é um só pro pedido inteiro.'],

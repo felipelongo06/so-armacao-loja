@@ -245,7 +245,11 @@
   function rotuloTipo(p, v) { return v && v.tipo ? (TIPOS[v.tipo] || '') : (TIPOS[p.tipo] || ''); }
   function fotosDaVariacao(v, p) {
     var base = (v.imagens && v.imagens.length ? v.imagens : [v.imagem || p.imagem]).filter(Boolean);
-    var lista = base.map(function (src, i) { return { src: foto(src), rotulo: i === 0 ? 'Frente' : 'Foto ' + (i + 1) }; });
+    var ROTULOS = { lateral: 'Lateral', detalhe: 'Detalhe', 'modelo-1': 'Modelo', 'modelo-2': 'Modelo de lado' };
+    var lista = base.slice(0, 5).map(function (src, i) {
+      var m = String(src).match(/-(lateral|detalhe|modelo-[12])\.(jpe?g|png|webp)(\?.*)?$/i);
+      return { src: foto(src), rotulo: i === 0 ? 'Frente' : m ? ROTULOS[m[1].toLowerCase()] : 'Foto ' + (i + 1) };
+    });
     var m = base.length === 1 && base[0].match(RE_FOTO_CDN);
     if (m) {
       lista.push({ src: foto(m[1] + '-detalhe.' + m[2]), rotulo: 'Detalhe', opcional: true });

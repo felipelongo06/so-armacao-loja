@@ -772,7 +772,7 @@
       '</div></section>' +
       '<section class="leve2"><div class="container">' +
         '<h2 class="display">A 2ª armação sai com <em>-' + l2 + '%.</em></h2>' +
-        '<p>Levando 2 no mesmo pedido, a 2ª sai com ' + l2 + '% de desconto — é o único desconto da loja, e aparece sozinho no carrinho. O frete é um só pro pedido inteiro. Uma pro trampo, uma pro rolê.</p>' +
+        '<p>Levando 2 no mesmo pedido, a 2ª sai com ' + l2 + '% de desconto, que aparece sozinho no carrinho. O frete é um só pro pedido inteiro. Uma pro trampo, uma pro rolê.</p>' +
         '<a class="btn btn-laranja" href="/modelos" data-link style="justify-self:start">Escolher modelos</a>' +
         '<div class="passos"><div class="passo"><strong>1ª</strong><span>preço cheio</span></div><div class="passo"><strong>-' + l2 + '%</strong><span>na 2ª armação</span></div><div class="passo"><strong>1</strong><span>frete pro pedido inteiro</span></div></div>' +
       '</div></section>' +
@@ -805,7 +805,7 @@
       ['A armação vem com as lentes?', 'Não — vendemos só a armação, que é o que encarece na ótica. Você leva a nossa armação pra colocar as lentes do seu grau na ótica ou no laboratório da sua confiança.'],
       ['Como funciona a troca grátis?', 'Compra online tem direito de arrependimento: em até 7 dias úteis depois de receber, se não serviu, não gostou ou mudou de ideia, a gente troca por outro modelo ou devolve o dinheiro — sem custo, você não paga o frete da devolução. Depois desse prazo, a troca é só por defeito de fabricação.'],
       ['Quanto tempo demora pra chegar?', 'Até 3 dias úteis na Grande São Paulo e até 5 dias úteis pro resto do Brasil, contados da confirmação do pagamento. O código de rastreio chega no seu e-mail.'],
-      ['Como funciona o desconto da 2ª armação?', 'Levando 2 armações no mesmo pedido, a 2ª (a de menor valor) sai com ' + l2 + '% de desconto. É o único desconto da loja e aparece sozinho no carrinho. A cada 2 armações, uma sai com ' + l2 + '% off.'],
+      ['Como funciona o desconto da 2ª armação?', 'Levando 2 armações no mesmo pedido, a 2ª (a de menor valor) sai com ' + l2 + '% de desconto, que aparece sozinho no carrinho. A cada 2 armações, uma sai com ' + l2 + '% off.'],
       ['Tem nota fiscal?', 'Sempre. Todo pedido sai com NF-e no seu nome, enviada por e-mail.'],
       ['E se a armação vier com defeito?', 'Passados os 7 dias úteis de arrependimento, a troca é só por defeito de fabricação, como manda o Código de Defesa do Consumidor: até 90 dias depois do recebimento. É só mandar um e-mail com o número do pedido e uma foto. Não oferecemos garantia além do que a lei determina.'],
       ['Quais as formas de pagamento?', 'Pix, com confirmação automática em segundos, ou cartão de crédito, parcelado. O cartão é processado numa página segura da operadora — seus dados não passam pelo nosso site.']
@@ -2240,7 +2240,7 @@
       ['', 'Ninguém faz melhor por menos.']] },
     'como-comprar': { t: 'Como comprar', d: 'Passo a passo pra comprar sua armação na Só Armação.', b: [
       ['1 — Escolha a armação', 'Navegue pelos modelos e use os filtros de formato e cor. Todas as medidas (lente, ponte, haste e largura frontal) estão na página de cada modelo — compare com um óculos que já serve bem em você.'],
-      ['2 — Adicione ao carrinho', 'Levando 2 armações no mesmo pedido, a 2ª (a de menor valor) sai com 30% de desconto — é o único desconto da loja. O frete é um só pro pedido inteiro e é calculado pelo seu CEP.'],
+      ['2 — Adicione ao carrinho', 'Levando 2 armações no mesmo pedido, a 2ª (a de menor valor) sai com 30% de desconto, que aparece sozinho no carrinho. O frete é um só pro pedido inteiro e é calculado pelo seu CEP.'],
       ['3 — Informe seus dados', 'Nome, CPF, e-mail, WhatsApp, CEP e número. O endereço é preenchido sozinho a partir do CEP.'],
       ['4 — Pague no Pix ou no cartão', 'No Pix, escaneie o QR Code ou copie o código: a confirmação é automática, em segundos. No cartão de crédito, o pagamento abre numa página segura da operadora e você pode parcelar.'],
       ['5 — Receba em casa', 'Até 3 dias úteis na Grande São Paulo e até 5 dias úteis pro resto do Brasil, contados da confirmação do pagamento. O rastreio chega no seu e-mail.']] },
@@ -2263,7 +2263,8 @@
       ['O que coletamos', 'Nome, CPF, e-mail, WhatsApp e endereço — o necessário pra processar o pedido, emitir a nota fiscal e entregar. Também usamos cookies e ferramentas de medição (Google Analytics, Google Ads, Meta e Microsoft Clarity) pra entender como a loja é usada e mostrar nossos anúncios pra quem já visitou o site. O Clarity registra cliques, rolagem e movimentos na página pra gente melhorar o site; o que você digita nos campos fica mascarado e não é gravado.'],
       ['Como usamos', 'Pra entregar seu pedido, emitir nota, calcular frete, confirmar o pagamento, conferir se é a sua primeira compra (pro desconto de 1ª compra, pelo CPF, e-mail e WhatsApp dos pedidos anteriores) e, se você autorizar, avisar sobre novidades. O CPF é guardado só de forma protegida (hash) no nosso banco.'],
       ['Conta e login', 'Criar conta é opcional. Se você criar, guardamos seu nome, e-mail e senha (protegida, sem que ninguém da loja consiga ler) ou, no login com Google, o nome e o e-mail que o Google informa. Na conta ficam seus pedidos, favoritos, os dados de entrega e contato que você preenche no checkout (pra próxima compra vir pronta; o CPF fica guardado criptografado) e, se você pedir, o cartão salvo: o número do cartão fica com a instituição de pagamento (Asaas) e a gente só vê a bandeira e os 4 últimos números. Quando você está logado, as ferramentas de medição recebem um código interno da sua conta (nunca seu e-mail ou CPF), pra entendermos como o site é usado em diferentes aparelhos. Pra excluir a conta, escreva pra ' + CONFIG.email + '.'],
-      ['Com quem compartilhamos', 'Só com quem precisa pra operação: a instituição de pagamento (Pix e cartão), a transportadora e o sistema emissor de nota fiscal. Não vendemos seus dados.'],
+      ['Atendimento e assistente virtual', 'Quando você fala com a gente pelo WhatsApp ou pelo formulário de contato, guardamos a conversa pra dar continuidade ao atendimento. No WhatsApp, uma assistente virtual com inteligência artificial (o Claude, da empresa Anthropic) pode responder primeiro: ela recebe as mensagens da conversa e, pra informar status e rastreio, os dados do pedido ligado ao seu telefone ou ao número e e-mail que você informar (número, itens, valor, status e transporte). Ela não recebe seu CPF, endereço nem dados de pagamento. A primeira resposta dela vem identificada como assistente virtual, e você pode pedir pra falar com uma pessoa da equipe a qualquer momento.'],
+      ['Com quem compartilhamos', 'Só com quem precisa pra operação: a instituição de pagamento (Pix e cartão), a transportadora, o sistema emissor de nota fiscal e, no atendimento pelo WhatsApp, a Anthropic, que fornece a assistente virtual. Não vendemos seus dados.'],
       ['Seus direitos (LGPD)', 'Você pode pedir acesso, correção ou exclusão dos seus dados a qualquer momento pelo e-mail ' + CONFIG.email + '.']] },
     termos: { t: 'Termos de uso', d: 'Condições de compra na Só Armação.', b: [
       ['', 'Ao comprar na Só Armação você concorda com estes termos. Eles existem pra deixar tudo claro, sem letra miúda.'],

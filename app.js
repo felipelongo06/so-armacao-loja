@@ -224,8 +224,19 @@
   function precoSegunda(preco) { return preco * (1 - (estado.regras.leve2_pct || 0) / 100); }
   // O cadastro do Bling ainda traz "garantia de 1 ano e troca em até 30 dias" nas descrições;
   // a loja não promete garantia e a troca grátis é de 7 dias úteis. Limpa na exibição.
+  // A descrição vem do catálogo com HTML (<p>, <br>, &amp;…): aqui vira texto puro.
+  var ENTIDADES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+  function textoPuro(html) {
+    return String(html || '')
+      .replace(/<\s*(br|\/p|\/li|\/div)\b[^>]*>/gi, ' ')
+      .replace(/<[^>]*>/g, '')
+      .replace(/&(#\d+|#x[0-9a-f]+|[a-z]+);/gi, function (m, e) {
+        if (e[0] === '#') { var n = e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10); return n ? String.fromCodePoint(n) : m; }
+        return ENTIDADES[e.toLowerCase()] || m;
+      });
+  }
   function limparDescricao(texto) {
-    return String(texto || '')
+    return textoPuro(texto)
       .replace(/compre com nota fiscal,?\s*garantia de 1 ano( contra defeito de fabricação)?\s*e\s*troca em até 30 dias\.?/gi, 'Compre com nota fiscal e troca grátis em até 7 dias úteis.')
       .replace(/,?\s*garantia de 1 ano( contra defeito de fabricação)?/gi, '')
       .replace(/,?\s*(e\s*)?troca (grátis )?em até 30 dias/gi, '')

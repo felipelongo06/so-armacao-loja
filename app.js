@@ -1,6 +1,6 @@
 /* Só Armação — loja
  * Uma página só (SPA). O catálogo vem do backend (/api/catalogo, alimentado pelo Bling);
- * preço, desconto do 2º óculos (-30%) e frete são sempre os que o servidor devolve (/api/cotar);
+ * preço, desconto do 2º óculos (-40%) e frete são sempre os que o servidor devolve (/api/cotar);
  * o pagamento é criado pelo /api/checkout e acompanhado pelo /api/pedido/:id.
  * O navegador nunca manda preço: só sku e quantidade.
  */
@@ -149,11 +149,11 @@
     catalogo: null,        // resposta do /api/catalogo
     porCodigo: {},         // codigo (maiúsculo) -> produto
     porSku: {},            // sku (maiúsculo) -> { produto, variacao }
-    regras: { leve2_pct: 30, max_unidades: 20 },
+    regras: { leve2_pct: 40, max_unidades: 20 },
     precoMinimo: null,
     carrinho: ler('sa_cart_v2', []),
     cep: ler('sa_cep', ''),
-    freteOpcao: ler('sa_frete', 'ECONOMICO'),  // 'ECONOMICO' | 'EXPRESSO'
+    freteOpcao: ler('sa_frete', 'ECONOMICO'),  // 'FULL' | 'ECONOMICO' | 'EXPRESSO'
     cotacao: null,         // último resumo do /api/cotar
     cotacaoErro: '',
     form: ler('sa_checkout', {}, sessionStorage),
@@ -318,6 +318,9 @@
     var body = { itens: itensPedido(), frete: estado.freteOpcao };
     var cepLimpo = digitos(cep);
     if (cepLimpo.length === 8) body.cep = cepLimpo;
+    // Sem escolha manual de frete pra este CEP: o servidor marca a Entrega Full se o CEP for atendido.
+    // Trocou de CEP: a escolha manual anterior deixa de valer.
+    if (cepLimpo.length === 8 && ler('sa_frete_cep', '') !== cepLimpo) { body.full_padrao = true; apagar('sa_frete_cep'); }
     if (cliente && cpfValido(cliente.cpf)) body.cliente = cliente;
     return fetch(CONFIG.api + '/api/cotar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, dados: d }; }); })
@@ -336,11 +339,12 @@
 
   // Cards "Econômico / Expresso" — só aparecem quando há 2 opções pro CEP.
   // A transportadora não é exibida (regra do Felipe): só título, prazo e preço.
+  // Entrega Full (quando o servidor oferece pro CEP) vem primeiro, em destaque.
   function seletorFreteHtml(r) {
     if (!r || !r.frete_opcoes || r.frete_opcoes.length < 2) return '';
     return '<div class="frete-opcoes" role="group" aria-label="Forma de entrega">' + r.frete_opcoes.map(function (o) {
       var ativo = o.codigo === r.frete_opcao;
-      return '<button type="button" class="frete-opcao' + (ativo ? ' ativo' : '') + '" data-action="frete" data-frete="' + h(o.codigo) + '" aria-pressed="' + (ativo ? 'true' : 'false') + '">' +
+      return '<button type="button" class="frete-opcao' + (o.codigo === 'FULL' ? ' frete-full' : '') + (ativo ? ' ativo' : '') + '" data-action="frete" data-frete="' + h(o.codigo) + '" aria-pressed="' + (ativo ? 'true' : 'false') + '">' +
         '<span class="frete-tit">' + h(o.titulo) + '</span>' +
         '<span class="frete-prazo">' + h(o.prazo) + '</span>' +
         '<span class="frete-preco">' + (o.preco === 0 ? 'grátis' : h(fmt(o.preco))) + '</span>' +
@@ -1418,6 +1422,12 @@
         .then(function (res) {
           if (g !== geracao) return;
           var d = res.dados || {};
+          // Entrega Full recusada pro endereço final: volta pras outras opções e avisa.
+          if (!res.ok && d.frete_indisponivel) {
+            estado.freteOpcao = 'ECONOMICO'; gravar('sa_frete_cep', digitos(f.cep));
+            recotar().then(function () { if (g === geracao) render(ultimaCotacao, d.erro, false); });
+            return;
+          }
           if (!res.ok) throw new Error(d.erro || 'Não foi possível iniciar o pagamento.');
           // Cartão salvo: cobrado aqui mesmo; a confirmação acompanha a aprovação.
           if (d.cartao_salvo) {
@@ -1430,7 +1440,8 @@
             gravar('sa_pedido_pendente', { id: d.pedido_id, total: d.resumo && d.resumo.total, metodo: 'CREDIT_CARD', prazo: d.resumo && d.resumo.frete_prazo }, sessionStorage);
             location.href = d.checkout_url; return;
           }
-          estado.pix = { pedidoId: d.pedido_id, qr: d.pix.qrcode_base64, copia: d.pix.copia_e_cola, total: d.resumo.total, prazo: d.resumo.frete_prazo, expiraEm: Date.now() + CONFIG.pixJanelaSeg * 1000 };
+          estado.pix = { pedidoId: d.pedido_id, qr: d.pix.qrcode_base64, copia: d.pix.copia_e_cola, total: d.resumo.total, prazo: d.resumo.frete_prazo, expiraEm: Date.now() + CONFIG.pixJanelaSeg * 1000,
+            full: d.resumo.frete_opcao === 'FULL' ? ((estado.regras.frete_full || {}).corte || '19:00') : null };   // Entrega Full: horário de corte
           gravar('sa_pix', estado.pix, sessionStorage);
           navegar('/pix');
         })
@@ -1452,6 +1463,7 @@
     app.innerHTML = '<div class="container pix">' +
       '<h1 class="display" style="font-size:clamp(30px,6vw,48px)">Pague no Pix</h1>' +
       '<p>Pedido <strong>' + h(px.pedidoId) + '</strong> · total <strong>' + h(fmt(px.total)) + '</strong></p>' +
+      (px.full && antesDoCorteSP(px.full) ? '<div class="aviso info">Pague até ' + h(px.full) + ' para receber hoje.</div>' : '') +
       '<div class="qr"><img src="data:image/png;base64,' + h(px.qr) + '" alt="QR Code do Pix"></div>' +
       '<div class="contador" id="contador">15:00</div>' +
       '<div class="copia"><input id="copia" readonly value="' + h(px.copia) + '" aria-label="Código Pix copia e cola"><button class="btn btn-verde" type="button" data-action="copiar">Copiar</button></div>' +
@@ -1468,6 +1480,14 @@
     }, 1000);
     var poll = setInterval(function () { conferirPagamento(px.pedidoId, false); }, CONFIG.pollingMs);
     estado.timers.push(tick, poll);
+  }
+  // Entrega Full: agora (no horário de São Paulo) ainda está até o corte "HH:MM"?
+  function antesDoCorteSP(corte) {
+    try {
+      var p = {}; new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date()).forEach(function (x) { p[x.type] = x.value; });
+      var c = String(corte).split(':');
+      return Number(p.hour) * 60 + Number(p.minute) <= Number(c[0]) * 60 + Number(c[1]);
+    } catch (e) { return false; }
   }
   function conferirPagamento(pedidoId, manual) {
     var aviso = document.getElementById('pix-aviso');
@@ -1509,13 +1529,17 @@
     var pedidoId = q.pedido || (estado.pix && estado.pix.pedidoId) || '';
     if (!pedidoId) { navegar('/carrinho', true); return; }
     var pendente = ler('sa_pedido_pendente', null, sessionStorage) || estado.pix || {};
-    function render(status) {
+    function render(status, full) {
       var pago = status === 'PAGO' || status === 'PAGO_AGUARDANDO_CONFIRMACAO';
       var erro = status === 'ERRO';
+      // Entrega Full: data pela hora em que o pagamento confirmou (vem do servidor).
+      var quandoFull = full && full.data ? (full.hoje ? 'hoje' : 'amanhã') + ', ' + full.data.slice(8, 10) + '/' + full.data.slice(5, 7) : '';
       app.innerHTML = '<div class="container confirmacao">' +
         (pago ? '<div class="selo-ok">✓</div><h1 class="display">Pedido confirmado!</h1>' +
           '<p>Pedido <strong>' + h(pedidoId) + '</strong>' + (pendente.total ? ' · ' + h(fmt(pendente.total)) : '') + '</p>' +
-          '<p>Nota fiscal e código de rastreio chegam no seu e-mail. Prazo de entrega: <strong>' + h(pendente.prazo || 'até 5 dias úteis') + '</strong> a partir de agora.</p>' +
+          (quandoFull ? '<p>Entrega Full: você recebe <strong>' + h(quandoFull) + '</strong>, com entregador próprio de moto. A nota fiscal chega no seu e-mail.</p>' +
+            (full.mudou ? '<div class="aviso info">O pagamento foi confirmado depois do horário de corte, por isso a entrega ficou para ' + h(quandoFull) + '.</div>' : '')
+          : '<p>Nota fiscal e código de rastreio chegam no seu e-mail. Prazo de entrega: <strong>' + h(pendente.prazo || 'até 5 dias úteis') + '</strong> a partir de agora.</p>') +
           '<p>Quando a armação chegar, é só levar à ótica da sua preferência com a sua receita para colocarem as lentes de grau.</p>' +
           '<p class="endereco-resolvido">Dúvida? Escreva pra ' + h(CONFIG.email) + ' com o número do pedido.</p>' +
           '<a class="btn btn-laranja" href="/modelos" data-link>Continuar comprando</a>'
@@ -1535,7 +1559,7 @@
     function checar() {
       tentativas++;
       fetch(CONFIG.api + '/api/pedido/' + encodeURIComponent(pedidoId)).then(function (r) { if (r.status === 404 || r.status === 400) throw new Error('404'); return r.json(); }).then(function (d) {
-        if (d.pago || d.status === 'PAGO' || d.status === 'PAGO_AGUARDANDO_CONFIRMACAO') { limparTimers(); render('PAGO'); }
+        if (d.pago || d.status === 'PAGO' || d.status === 'PAGO_AGUARDANDO_CONFIRMACAO') { limparTimers(); render('PAGO', d.entrega_full); }
         else if (tentativas > 150) { limparTimers(); render('AGUARDANDO'); }
       }).catch(function (e) { if (String(e.message) === '404') { limparTimers(); render('ERRO'); } });
     }
@@ -2281,7 +2305,7 @@
     'como-comprar': { t: 'Como comprar', d: 'Passo a passo pra comprar sua armação na Só Armação.', b: [
       ['Antes de tudo: vendemos só a armação', 'Nenhum dos nossos produtos vem com lentes de grau. Você compra a armação aqui e uma ótica da sua escolha coloca as lentes do seu grau. Os óculos de sol vêm com lentes solares, sem grau.'],
       ['1 — Escolha a armação', 'Navegue pelos modelos e use os filtros de formato e cor. Todas as medidas (lente, ponte, haste e largura frontal) estão na página de cada modelo — compare com um óculos que já serve bem em você.'],
-      ['2 — Adicione ao carrinho', 'Levando 2 armações no mesmo pedido, a 2ª (a de menor valor) sai com 30% de desconto — é o único desconto da loja. O frete é um só pro pedido inteiro e é calculado pelo seu CEP.'],
+      ['2 — Adicione ao carrinho', 'Levando 2 armações no mesmo pedido, a 2ª (a de menor valor) sai com {leve2_pct}% de desconto, que aparece sozinho no carrinho. O frete é um só pro pedido inteiro e é calculado pelo seu CEP.'],
       ['3 — Informe seus dados', 'Nome, CPF, e-mail, WhatsApp, CEP e número. O endereço é preenchido sozinho a partir do CEP.'],
       ['4 — Pague no Pix ou no cartão', 'No Pix, escaneie o QR Code ou copie o código: a confirmação é automática, em segundos. No cartão de crédito, o pagamento abre numa página segura da operadora e você pode parcelar.'],
       ['5 — Receba em casa', 'Até 3 dias úteis na Grande São Paulo e até 5 dias úteis pro resto do Brasil, contados da confirmação do pagamento. O rastreio chega no seu e-mail.'],
@@ -2329,7 +2353,7 @@
     var pg = PAGINAS[m[1]];
     titulo(pg.t, pg.d);
     app.innerHTML = '<div class="container institucional"><nav class="migalhas"><a href="/" data-link>Início</a> › <a href="/ajuda" data-link>Ajuda</a> › <span>' + h(pg.t) + '</span></nav><h1 class="display">' + h(pg.t) + '</h1>' +
-      pg.b.map(function (b) { return (b[0] ? '<h2>' + h(b[0]) + '</h2>' : '') + '<p>' + h(b[1]) + '</p>'; }).join('') +
+      pg.b.map(function (b) { return (b[0] ? '<h2>' + h(b[0]) + '</h2>' : '') + '<p>' + h(b[1].replace('{leve2_pct}', estado.regras.leve2_pct)) + '</p>'; }).join('') +  // % do 2º óculos vem do servidor
       (m[1] === 'contato' ? formContatoHtml(perfilContato()) : '<p style="margin-top:24px"><a class="btn btn-laranja" href="/modelos" data-link>Ver modelos</a></p>') + '</div>';
     if (m[1] === 'contato') preencherContatoDaConta();
   }
@@ -2377,6 +2401,7 @@
       if (el.dataset.frete === estado.freteOpcao) return;
       estado.freteOpcao = el.dataset.frete;
       gravar('sa_frete', estado.freteOpcao);
+      gravar('sa_frete_cep', digitos(estado.cep));   // escolha manual vale pra este CEP (outro CEP volta à Full)
       track('select_shipping_option', { shipping_tier: estado.freteOpcao });
       geracao++;
       if (/\/checkout\/?$/.test(location.pathname)) viewCheckout(); else viewCarrinho();

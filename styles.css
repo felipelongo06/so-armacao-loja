@@ -408,6 +408,11 @@ body.lupa-aberta { overflow: hidden; }
 .frete-opcao .frete-prazo { font-size: 12px; color: var(--texto-suave); }
 .frete-opcao .frete-preco { font-weight: 700; margin-top: 2px; }
 @media (max-width: 360px) { .frete-opcoes { grid-template-columns: 1fr; } }
+/* Entrega Full: primeira, largura toda, em destaque */
+.frete-opcao.frete-full { grid-column: 1 / -1; border-color: var(--laranja); padding: 12px 14px; }
+.frete-opcao.frete-full .frete-tit { font-size: 17px; }
+.frete-opcao.frete-full .frete-prazo { color: inherit; font-weight: 600; }
+.frete-opcao.frete-full.ativo { border-color: var(--laranja); background: #FFF1E3; box-shadow: 0 0 0 1px var(--laranja); }
 
 .mini-itens { display: grid; gap: 8px; }
 .mini-item { display: grid; grid-template-columns: 44px 1fr auto; gap: 8px; align-items: center; font-size: 13px; }

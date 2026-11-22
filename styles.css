@@ -407,6 +407,13 @@ body.lupa-aberta { overflow: hidden; }
 .frete-opcao .frete-tit { font-family: var(--display); font-size: 15px; }
 .frete-opcao .frete-prazo { font-size: 12px; color: var(--texto-suave); }
 .frete-opcao .frete-preco { font-weight: 700; margin-top: 2px; }
+/* Entrega Full: primeiro card, borda laranja e selo "Mais rápido" */
+.frete-opcoes:has(.frete-full) { margin-top: 18px; }
+.frete-opcao.frete-full { position: relative; padding-top: 16px; border-color: var(--laranja); background: #FFF4EA; }
+.frete-opcao.frete-full:hover, .frete-opcao.frete-full.ativo { border-color: var(--laranja-escuro); background: #FFE9D6; }
+.frete-opcao.frete-full .frete-tit { color: var(--laranja-escuro); }
+.frete-opcao.frete-full .frete-prazo { color: var(--texto); font-weight: 700; }
+.frete-selo { position: absolute; top: -10px; left: 10px; background: var(--laranja); color: var(--verde-escuro); font-family: var(--display); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; line-height: 1; padding: 4px 7px; border-radius: 999px; white-space: nowrap; }
 @media (max-width: 360px) { .frete-opcoes { grid-template-columns: 1fr; } }
 
 .mini-itens { display: grid; gap: 8px; }

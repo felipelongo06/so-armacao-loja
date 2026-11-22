@@ -153,7 +153,7 @@
     precoMinimo: null,
     carrinho: ler('sa_cart_v2', []),
     cep: ler('sa_cep', ''),
-    freteOpcao: ler('sa_frete', 'ECONOMICO'),  // 'ECONOMICO' | 'EXPRESSO'
+    freteOpcao: ler('sa_frete', 'ECONOMICO'),  // 'ECONOMICO' | 'EXPRESSO' | 'FULL'
     cotacao: null,         // último resumo do /api/cotar
     cotacaoErro: '',
     form: ler('sa_checkout', {}, sessionStorage),
@@ -334,7 +334,7 @@
       });
   }
 
-  // Cards "Econômico / Expresso" — só aparecem quando há 2 opções pro CEP.
+  // Cards "Econômico / Expresso / Full" — só aparecem quando há 2+ opções pro CEP.
   // A transportadora não é exibida (regra do Felipe): só título, prazo e preço.
   function seletorFreteHtml(r) {
     if (!r || !r.frete_opcoes || r.frete_opcoes.length < 2) return '';
@@ -1421,16 +1421,16 @@
           if (!res.ok) throw new Error(d.erro || 'Não foi possível iniciar o pagamento.');
           // Cartão salvo: cobrado aqui mesmo; a confirmação acompanha a aprovação.
           if (d.cartao_salvo) {
-            gravar('sa_pedido_pendente', { id: d.pedido_id, total: d.resumo && d.resumo.total, metodo: 'CREDIT_CARD', prazo: d.resumo && d.resumo.frete_prazo }, sessionStorage);
+            gravar('sa_pedido_pendente', { id: d.pedido_id, total: d.resumo && d.resumo.total, metodo: 'CREDIT_CARD', prazo: d.resumo && d.resumo.frete_prazo, full: !!(d.resumo && d.resumo.frete_opcao === 'FULL') }, sessionStorage);
             estado.conta = null;
             navegar('/confirmacao?pedido=' + encodeURIComponent(d.pedido_id)); return;
           }
           // Só sai do site pra página de pagamento do Asaas, nunca pra outro endereço.
           if (d.metodo === 'CREDIT_CARD' && d.checkout_url && /^https:\/\/([a-z0-9-]+\.)*asaas\.com\//i.test(d.checkout_url)) {
-            gravar('sa_pedido_pendente', { id: d.pedido_id, total: d.resumo && d.resumo.total, metodo: 'CREDIT_CARD', prazo: d.resumo && d.resumo.frete_prazo }, sessionStorage);
+            gravar('sa_pedido_pendente', { id: d.pedido_id, total: d.resumo && d.resumo.total, metodo: 'CREDIT_CARD', prazo: d.resumo && d.resumo.frete_prazo, full: !!(d.resumo && d.resumo.frete_opcao === 'FULL') }, sessionStorage);
             location.href = d.checkout_url; return;
           }
-          estado.pix = { pedidoId: d.pedido_id, qr: d.pix.qrcode_base64, copia: d.pix.copia_e_cola, total: d.resumo.total, prazo: d.resumo.frete_prazo, expiraEm: Date.now() + CONFIG.pixJanelaSeg * 1000 };
+          estado.pix = { pedidoId: d.pedido_id, qr: d.pix.qrcode_base64, copia: d.pix.copia_e_cola, total: d.resumo.total, prazo: d.resumo.frete_prazo, full: d.resumo.frete_opcao === 'FULL', expiraEm: Date.now() + CONFIG.pixJanelaSeg * 1000 };
           gravar('sa_pix', estado.pix, sessionStorage);
           navegar('/pix');
         })
@@ -1509,13 +1509,23 @@
     var pedidoId = q.pedido || (estado.pix && estado.pix.pedidoId) || '';
     if (!pedidoId) { navegar('/carrinho', true); return; }
     var pendente = ler('sa_pedido_pendente', null, sessionStorage) || estado.pix || {};
+    // Entrega Full: pago até 19h (Brasília) chega hoje, depois chega amanhã.
+    // O servidor grava a data definitiva; aqui é só o texto da confirmação.
+    function quandoFull() {
+      try {
+        var hora = Number(new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hourCycle: 'h23' }).format(new Date()));
+        return hora < 19 ? 'hoje' : 'amanhã';
+      } catch (e) { return 'na data do e-mail'; }
+    }
     function render(status) {
       var pago = status === 'PAGO' || status === 'PAGO_AGUARDANDO_CONFIRMACAO';
       var erro = status === 'ERRO';
       app.innerHTML = '<div class="container confirmacao">' +
         (pago ? '<div class="selo-ok">✓</div><h1 class="display">Pedido confirmado!</h1>' +
           '<p>Pedido <strong>' + h(pedidoId) + '</strong>' + (pendente.total ? ' · ' + h(fmt(pendente.total)) : '') + '</p>' +
-          '<p>Nota fiscal e código de rastreio chegam no seu e-mail. Prazo de entrega: <strong>' + h(pendente.prazo || 'até 5 dias úteis') + '</strong> a partir de agora.</p>' +
+          (pendente.full
+            ? '<p>Entrega Full: a gente leva até a sua casa <strong>' + h(quandoFull()) + '</strong>. A nota fiscal e a data da entrega chegam no seu e-mail.</p>'
+            : '<p>Nota fiscal e código de rastreio chegam no seu e-mail. Prazo de entrega: <strong>' + h(pendente.prazo || 'até 5 dias úteis') + '</strong> a partir de agora.</p>') +
           '<p>Quando a armação chegar, é só levar à ótica da sua preferência com a sua receita para colocarem as lentes de grau.</p>' +
           '<p class="endereco-resolvido">Dúvida? Escreva pra ' + h(CONFIG.email) + ' com o número do pedido.</p>' +
           '<a class="btn btn-laranja" href="/modelos" data-link>Continuar comprando</a>'
@@ -2288,6 +2298,7 @@
       ['6 — Leve à sua ótica', 'A armação chega sem lentes de grau. Leve à ótica da sua preferência com a sua receita (ou faça o exame de vista) e peça para colocarem as lentes do seu grau. Se quiser trocar ou devolver no prazo de 7 dias úteis, faça isso antes de colocar as lentes.']] },
     entrega: { t: 'Entrega e frete', d: 'Prazos, valor do frete e rastreio dos pedidos da Só Armação.', b: [
       ['Prazo', 'Até 3 dias úteis na Grande São Paulo e até 5 dias úteis pra todo o Brasil, contados a partir da confirmação do pagamento.'],
+      ['Entrega Full', 'Pra quem mora a até 20 km de São Miguel Paulista, aparece no carrinho a Entrega Full: a gente leva até a sua casa por R$ 13,90. Pagou até as 19h, recebe no mesmo dia; depois das 19h, recebe no dia seguinte, inclusive fim de semana e feriado.'],
       ['Valor', 'Calculado pelo seu CEP, direto no carrinho, antes de você pagar. Levando 2 ou mais armações, o frete é um só pro pedido inteiro.'],
       ['Rastreio', 'O código de rastreio chega no seu e-mail assim que o pedido é postado.'],
       ['Endereço errado?', 'Avise a gente por e-mail (' + CONFIG.email + ') antes da postagem que a gente corrige sem custo.']] },

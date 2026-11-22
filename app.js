@@ -340,7 +340,9 @@
     if (!r || !r.frete_opcoes || r.frete_opcoes.length < 2) return '';
     return '<div class="frete-opcoes" role="group" aria-label="Forma de entrega">' + r.frete_opcoes.map(function (o) {
       var ativo = o.codigo === r.frete_opcao;
-      return '<button type="button" class="frete-opcao' + (ativo ? ' ativo' : '') + '" data-action="frete" data-frete="' + h(o.codigo) + '" aria-pressed="' + (ativo ? 'true' : 'false') + '">' +
+      var full = o.codigo === 'FULL';   // Entrega Full: vem primeiro (ordem do servidor) e com destaque
+      return '<button type="button" class="frete-opcao' + (full ? ' frete-full' : '') + (ativo ? ' ativo' : '') + '" data-action="frete" data-frete="' + h(o.codigo) + '" aria-pressed="' + (ativo ? 'true' : 'false') + '">' +
+        (full ? '<span class="frete-selo">Mais rápido</span>' : '') +
         '<span class="frete-tit">' + h(o.titulo) + '</span>' +
         '<span class="frete-prazo">' + h(o.prazo) + '</span>' +
         '<span class="frete-preco">' + (o.preco === 0 ? 'grátis' : h(fmt(o.preco))) + '</span>' +

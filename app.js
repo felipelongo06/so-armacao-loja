@@ -1,6 +1,6 @@
 /* Só Armação — loja
  * Uma página só (SPA). O catálogo vem do backend (/api/catalogo, alimentado pelo Bling);
- * preço, desconto do 2º óculos (-30%) e frete são sempre os que o servidor devolve (/api/cotar);
+ * preço, desconto do 2º óculos (-40%) e frete são sempre os que o servidor devolve (/api/cotar);
  * o pagamento é criado pelo /api/checkout e acompanhado pelo /api/pedido/:id.
  * O navegador nunca manda preço: só sku e quantidade.
  */
@@ -149,7 +149,7 @@
     catalogo: null,        // resposta do /api/catalogo
     porCodigo: {},         // codigo (maiúsculo) -> produto
     porSku: {},            // sku (maiúsculo) -> { produto, variacao }
-    regras: { leve2_pct: 30, max_unidades: 20 },
+    regras: { leve2_pct: 40, max_unidades: 20 },
     precoMinimo: null,
     carrinho: ler('sa_cart_v2', []),
     cep: ler('sa_cep', ''),
@@ -2295,7 +2295,7 @@
     'como-comprar': { t: 'Como comprar', d: 'Passo a passo pra comprar sua armação na Só Armação.', b: [
       ['Antes de tudo: vendemos só a armação', 'Nenhum dos nossos produtos vem com lentes de grau. Você compra a armação aqui e uma ótica da sua escolha coloca as lentes do seu grau. Os óculos de sol vêm com lentes solares, sem grau.'],
       ['1 — Escolha a armação', 'Navegue pelos modelos e use os filtros de formato e cor. Todas as medidas (lente, ponte, haste e largura frontal) estão na página de cada modelo — compare com um óculos que já serve bem em você.'],
-      ['2 — Adicione ao carrinho', 'Levando 2 armações no mesmo pedido, a 2ª (a de menor valor) sai com 30% de desconto — é o único desconto da loja. O frete é um só pro pedido inteiro e é calculado pelo seu CEP.'],
+      ['2 — Adicione ao carrinho', 'Levando 2 armações no mesmo pedido, a 2ª (a de menor valor) sai com 40% de desconto — é o único desconto da loja. O frete é um só pro pedido inteiro e é calculado pelo seu CEP.'],
       ['3 — Informe seus dados', 'Nome, CPF, e-mail, WhatsApp, CEP e número. O endereço é preenchido sozinho a partir do CEP.'],
       ['4 — Pague no Pix ou no cartão', 'No Pix, escaneie o QR Code ou copie o código: a confirmação é automática, em segundos. No cartão de crédito, o pagamento abre numa página segura da operadora e você pode parcelar.'],
       ['5 — Receba em casa', 'Até 3 dias úteis na Grande São Paulo e até 5 dias úteis pro resto do Brasil, contados da confirmação do pagamento. O rastreio chega no seu e-mail.'],

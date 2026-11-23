@@ -469,6 +469,8 @@
     document.querySelectorAll('.nav a[data-nav]').forEach(function (a) { a.classList.toggle('ativo', !!rota && a.getAttribute('data-nav') === rota.nav); });
     jsonLd(null);
     naoIndexar(!rota || rota.nav === 'carrinho' || rota.nav === 'conta');
+    document.body.setAttribute('data-tela', !rota ? '' : /^\/(checkout|pix)/.test(caminho) ? 'pagamento' : /^\/p\//.test(caminho) ? 'produto' : '');
+    if (typeof waFecharPainel === 'function' && document.getElementById('wa-painel')) waFecharPainel();
     window.scrollTo(0, 0);
     if (!rota) { titulo('Página não encontrada'); app.innerHTML = '<div class="container institucional"><h1 class="display">Essa página não existe.</h1><p>O endereço pode ter mudado. <a href="/modelos" data-link>Ver todos os modelos →</a></p></div>'; track('page_view', { page: '404' }); return; }
     var precisaCatalogo = rota.nav !== 'ajuda' || !estado.catalogo;
@@ -2495,6 +2497,110 @@
   window.addEventListener('beforeunload', function () {
     if (estado.carrinho.length && !/^\/(confirmacao|pix)/.test(location.pathname)) track('cart_abandon', { reason: 'saida_site', items: unidadesCarrinho() });
   });
+
+  // ---------------------------------------------------------------------------
+  // Botão do WhatsApp: atendimento com a assistente virtual (IA) e a equipe.
+  // O cliente informa nome, e-mail e WhatsApp, o backend abre o ticket e devolve o
+  // link do wa.me com o protocolo ("Protocolo 1234-ABCD") já escrito na mensagem.
+  // ---------------------------------------------------------------------------
+  var WA_ULTIMO = 'sa_wa_atendimento', WA_DADOS = 'sa_wa_dados', WA_VALIDADE = 24 * 3600e3;
+  var ICONE_WA = '<svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path fill="currentColor" d="M16 3C8.8 3 3 8.7 3 15.8c0 2.5.7 4.9 2 7L3 29l6.4-2c2 1.1 4.3 1.7 6.6 1.7 7.2 0 13-5.7 13-12.8S23.2 3 16 3zm0 23.4c-2.1 0-4.1-.6-5.9-1.7l-.4-.3-3.8 1.2 1.2-3.7-.3-.4c-1.2-1.8-1.8-3.8-1.8-5.9C5 9.9 9.9 5.2 16 5.2s11 4.7 11 10.6-4.9 10.6-11 10.6zm6-7.9c-.3-.2-2-1-2.3-1.1-.3-.1-.5-.2-.8.2-.2.3-.9 1.1-1.1 1.3-.2.2-.4.3-.7.1-.3-.2-1.4-.5-2.7-1.7-1-.9-1.7-2-1.9-2.3-.2-.3 0-.5.2-.7l.5-.6c.2-.2.2-.4.3-.6.1-.2 0-.5 0-.6-.1-.2-.8-1.8-1-2.5-.3-.7-.5-.6-.8-.6h-.6c-.2 0-.6.1-.9.4-.3.3-1.2 1.1-1.2 2.8s1.2 3.2 1.4 3.5c.2.2 2.4 3.6 5.8 5 .8.3 1.4.5 1.9.7.8.3 1.5.2 2.1.1.6-.1 2-.8 2.2-1.6.3-.8.3-1.4.2-1.6-.1-.1-.3-.2-.6-.4z"/></svg>';
+
+  function waUltimo() {
+    var u = ler(WA_ULTIMO, null);
+    return u && u.url && Date.now() - u.ts < WA_VALIDADE ? u : null;
+  }
+  function waPainelHtml() {
+    var u = waUltimo();
+    var topo = '<div class="wa-topo"><span class="wa-avatar" aria-hidden="true">' +
+        '<svg viewBox="0 0 68 36" fill="none" stroke="currentColor" stroke-width="4"><circle cx="16" cy="20" r="12"/><circle cx="52" cy="20" r="12"/><path d="M28 18q6-5 12 0"/></svg></span>' +
+        '<span class="wa-quem"><strong id="wa-titulo">Só Armação</strong><span class="wa-online">Online agora</span></span>' +
+        '<button type="button" class="wa-fechar" data-wa="fechar" aria-label="Fechar">×</button></div>';
+    if (u) {
+      return topo + '<div class="wa-corpo">' +
+        '<p class="wa-bolha">Seu atendimento <strong>#' + h(u.numero) + '</strong> está aberto. É só continuar pelo WhatsApp.</p>' +
+        '<p class="wa-protocolo">Protocolo <strong>' + h(u.protocolo) + '</strong></p>' +
+        '<a class="btn wa-btn" href="' + h(u.url) + '" target="_blank" rel="noopener" data-wa="abrir">' + ICONE_WA + ' Abrir o WhatsApp</a>' +
+        '<button type="button" class="link wa-novo" data-wa="novo">Abrir outro atendimento</button></div>';
+    }
+    var pf = perfilContato(), salvo = ler(WA_DADOS, {}) || {};
+    var v = { nome: salvo.nome || pf.nome, email: salvo.email || pf.email, telefone: salvo.telefone || pf.telefone };
+    var campo = function (nome, rotulo, valor, attrs) {
+      return '<div class="campo"><label for="wa-' + nome + '">' + rotulo + '</label><input id="wa-' + nome + '" name="' + nome + '" value="' + h(valor || '') + '" ' + attrs + '></div>';
+    };
+    return topo + '<form class="wa-corpo" data-wa="form" novalidate>' +
+      '<p class="wa-bolha">Oi! 👋 Tire dúvidas, veja modelos e acompanhe seu pedido pelo WhatsApp, 24 horas. Pra começar, informe seus dados: assim registramos seu atendimento e também te respondemos por e-mail.</p>' +
+      campo('nome', 'Nome', v.nome, 'autocomplete="name" required maxlength="80"') +
+      campo('email', 'E-mail', v.email, 'type="email" inputmode="email" autocomplete="email" required maxlength="120"') +
+      campo('telefone', 'WhatsApp', v.telefone ? mascara('tel', v.telefone) : '', 'type="tel" inputmode="tel" autocomplete="tel" maxlength="16" data-mascara="tel" placeholder="(11) 90000-0000" required') +
+      '<div class="isca" aria-hidden="true"><label>Site <input name="site" tabindex="-1" autocomplete="off"></label></div>' +
+      '<div class="wa-erro" role="alert"></div>' +
+      '<button class="btn wa-btn" type="submit">' + ICONE_WA + ' Iniciar conversa</button>' +
+      '<p class="wa-letrinha">Quem responde primeiro é a nossa assistente virtual (IA); se precisar, a equipe assume. Mensagens ofensivas encerram o atendimento. Seus dados seguem a <a href="/privacidade" data-link>política de privacidade</a>.</p>' +
+      '</form>';
+  }
+  function waAbrirPainel() {
+    var p = document.getElementById('wa-painel');
+    p.innerHTML = waPainelHtml();
+    p.hidden = false;
+    document.getElementById('wa-botao').setAttribute('aria-expanded', 'true');
+    var foco = p.querySelector('input:not([value]), input[value=""]') || p.querySelector('.wa-btn');
+    if (foco && matchMedia('(min-width: 820px)').matches) foco.focus();
+    track('whatsapp_painel', { pagina: location.pathname });
+  }
+  function waFecharPainel() {
+    var p = document.getElementById('wa-painel');
+    if (!p || p.hidden) return;
+    p.hidden = true;
+    document.getElementById('wa-botao').setAttribute('aria-expanded', 'false');
+  }
+  function waEnviar(form) {
+    var corpo = { acao: 'whatsapp', nome: campoForm(form, 'nome'), email: campoForm(form, 'email').toLowerCase(), telefone: campoForm(form, 'telefone'), site: campoForm(form, 'site') };
+    var tel = digitos(corpo.telefone);
+    var erro = corpo.nome.length < 2 ? 'Digite seu nome.'
+      : !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(corpo.email) ? 'Digite um e-mail válido.'
+      : tel.length < 10 || tel.length > 11 ? 'Digite seu WhatsApp com DDD.' : '';
+    var aviso = form.querySelector('.wa-erro'), botao = form.querySelector('button[type="submit"]');
+    aviso.textContent = erro;
+    if (erro) return;
+    gravar(WA_DADOS, { nome: corpo.nome, email: corpo.email, telefone: tel });
+    botao.disabled = true; botao.classList.add('carregando-btn');
+    tokenConta().catch(function () { return null; }).then(function (t) {
+      return apiAtendimento('POST', corpo, '', t);
+    }).then(function (d) {
+      gravar(WA_ULTIMO, { numero: d.numero, protocolo: d.protocolo, url: d.whatsapp_url, ts: Date.now() });
+      track('whatsapp_atendimento', { numero: d.numero, pagina: location.pathname });
+      // Ainda dentro do clique na maioria dos navegadores; se bloquear, fica o botão.
+      var w = null;
+      try { w = window.open(d.whatsapp_url, '_blank'); if (w) w.opener = null; } catch (x) {}
+      waAbrirPainel();
+    }).catch(function (e) {
+      botao.disabled = false; botao.classList.remove('carregando-btn');
+      aviso.textContent = e.message;
+    });
+  }
+  (function montarWhatsApp() {
+    var botao = document.createElement('button');
+    botao.type = 'button'; botao.id = 'wa-botao'; botao.className = 'wa-botao';
+    botao.setAttribute('aria-label', 'Falar no WhatsApp'); botao.setAttribute('aria-controls', 'wa-painel'); botao.setAttribute('aria-expanded', 'false');
+    botao.innerHTML = ICONE_WA + '<span class="wa-ponto" aria-hidden="true"></span><span class="wa-dica">Atendimento online</span>';
+    var painel = document.createElement('div');
+    painel.id = 'wa-painel'; painel.className = 'wa-painel'; painel.hidden = true;
+    painel.setAttribute('role', 'dialog'); painel.setAttribute('aria-labelledby', 'wa-titulo');
+    document.body.appendChild(painel); document.body.appendChild(botao);
+    botao.addEventListener('click', function () { if (painel.hidden) waAbrirPainel(); else waFecharPainel(); });
+    painel.addEventListener('click', function (e) {
+      var a = e.target.closest('[data-wa]');
+      if (!a) return;
+      var acao = a.getAttribute('data-wa');
+      if (acao === 'fechar') waFecharPainel();
+      else if (acao === 'novo') { try { localStorage.removeItem(WA_ULTIMO); } catch (x) {} waAbrirPainel(); }
+      else if (acao === 'abrir') track('whatsapp_abrir', { pagina: location.pathname });
+    });
+    painel.addEventListener('submit', function (e) { if (e.target.matches('[data-wa="form"]')) { e.preventDefault(); waEnviar(e.target); } });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') waFecharPainel(); });
+    document.addEventListener('click', function (e) { if (!painel.hidden && e.target.isConnected && !painel.contains(e.target) && !botao.contains(e.target)) waFecharPainel(); });
+  })();
 
   // ---------------------------------------------------------------------------
   // Início

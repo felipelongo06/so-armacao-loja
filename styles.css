@@ -711,3 +711,55 @@ body.lupa-aberta { overflow: hidden; }
 .lentes-passos span { font-size: 14px; color: var(--texto-suave); }
 .lentes-passos span strong { color: var(--texto); }
 @media (min-width: 820px) { .lentes .container { grid-template-columns: 1fr 1fr; align-items: center; gap: 32px; } }
+
+/* ---------- Botão do WhatsApp (atendimento) ---------- */
+.wa-botao {
+  position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 80;
+  width: 58px; height: 58px; border-radius: 50%; border: 0; padding: 14px; cursor: pointer;
+  background: #25D366; color: #fff; box-shadow: 0 6px 20px rgba(6,48,27,.35); transition: transform .15s ease;
+}
+.wa-botao:hover { transform: scale(1.06); }
+.wa-botao:focus-visible { outline: 3px solid var(--laranja); outline-offset: 3px; }
+.wa-botao svg { width: 100%; height: 100%; display: block; }
+.wa-ponto { position: absolute; top: 3px; right: 3px; width: 14px; height: 14px; border-radius: 50%; background: var(--laranja); border: 2px solid #fff; }
+.wa-ponto::after { content: ""; position: absolute; inset: -2px; border-radius: 50%; border: 2px solid var(--laranja); animation: wa-pulso 2s ease-out infinite; }
+@keyframes wa-pulso { from { transform: scale(1); opacity: .9; } to { transform: scale(2.2); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .wa-ponto::after { animation: none; } }
+.wa-dica {
+  position: absolute; right: 68px; top: 50%; transform: translateY(-50%); white-space: nowrap;
+  background: var(--verde-escuro); color: var(--creme); font-weight: 700; font-size: 13px; padding: 7px 11px; border-radius: 8px;
+  pointer-events: none; opacity: 0; transition: opacity .15s ease;
+}
+@media (hover: hover) { .wa-botao:hover .wa-dica { opacity: 1; } }
+.wa-botao[aria-expanded="true"] .wa-dica, .wa-botao[aria-expanded="true"] .wa-ponto { display: none; }
+body[data-tela="pagamento"] .wa-botao, body[data-tela="pagamento"] .wa-painel { display: none; }
+@media (max-width: 819px) { body[data-tela="produto"] .wa-botao { bottom: calc(84px + env(safe-area-inset-bottom)); } }
+
+.wa-painel {
+  position: fixed; right: 16px; bottom: calc(86px + env(safe-area-inset-bottom)); z-index: 81;
+  width: min(360px, calc(100vw - 32px)); max-height: calc(100svh - 120px); overflow: auto;
+  background: var(--creme); color: var(--verde-escuro); border-radius: 14px; box-shadow: 0 16px 40px rgba(6,48,27,.35);
+}
+.wa-painel[hidden] { display: none; }
+@media (max-width: 819px) { body[data-tela="produto"] .wa-painel { bottom: calc(154px + env(safe-area-inset-bottom)); max-height: calc(100svh - 190px); } }
+.wa-topo { display: flex; align-items: center; gap: 10px; padding: 12px 12px 12px 14px; background: var(--verde); color: var(--creme); border-radius: 14px 14px 0 0; position: sticky; top: 0; }
+.wa-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--verde-escuro); color: var(--laranja); display: grid; place-items: center; flex: none; }
+.wa-avatar svg { width: 28px; }
+.wa-quem { display: grid; line-height: 1.2; flex: 1; }
+.wa-quem strong { font-size: 15px; }
+.wa-online { font-size: 12px; opacity: .9; display: flex; align-items: center; gap: 5px; }
+.wa-online::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #25D366; }
+.wa-fechar { border: 0; background: transparent; color: var(--creme); font-size: 26px; line-height: 1; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; }
+.wa-fechar:hover { background: rgba(255,255,255,.12); }
+.wa-corpo { padding: 14px; display: grid; gap: 10px; }
+.wa-corpo .campo { margin: 0; }
+.wa-bolha { margin: 0; background: var(--branco); border-radius: 4px 12px 12px 12px; padding: 10px 12px; font-size: 14px; line-height: 1.45; box-shadow: 0 1px 0 rgba(0,0,0,.06); }
+.wa-protocolo { margin: 0; font-size: 14px; }
+.wa-btn { background: #25D366; color: #fff; display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; text-decoration: none; }
+.wa-btn:hover { background: #1EBE5A; color: #fff; }
+.wa-btn svg { width: 20px; height: 20px; }
+.wa-btn:disabled { opacity: .6; cursor: wait; }
+.wa-erro { color: #B42318; font-size: 13px; font-weight: 700; }
+.wa-erro:empty { display: none; }
+.wa-letrinha { margin: 0; font-size: 11.5px; line-height: 1.4; color: var(--texto-suave); }
+.wa-novo { justify-self: center; font-size: 13px; }

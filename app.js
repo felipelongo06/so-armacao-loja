@@ -1232,7 +1232,23 @@
       '<div class="resumo-linha total"><span>Total</span><span class="num">' + h(fmt(r.total)) + '</span></div>';
   }
 
+  // Link do e-mail de pagamento não concluído: /carrinho?itens=SKU:2,SKU:1 remonta o
+  // carrinho (só o que existe no catálogo e tem estoque; o servidor reconfere tudo).
+  function carrinhoDoLink() {
+    var q = query();
+    if (!q.itens) return;
+    var novo = [];
+    q.itens.split(',').forEach(function (par) {
+      var x = par.split(':'), a = estado.porSku[String(x[0] || '').toUpperCase()], qty = Math.max(1, Math.min(20, parseInt(x[1], 10) || 1));
+      if (!a || !a.variacao || !(a.variacao.estoque > 0)) return;
+      qty = Math.min(qty, a.variacao.estoque);
+      novo.push({ sku: a.variacao.sku, qty: qty, codigo: a.produto.codigo, nome: a.produto.nome, cor: a.variacao.cor, preco: a.variacao.preco, imagem: a.variacao.imagem || a.produto.imagem });
+    });
+    if (novo.length) { estado.carrinho = novo; salvarCarrinho(); }
+    history.replaceState({}, '', '/carrinho');
+  }
   function viewCarrinho() {
+    carrinhoDoLink();
     titulo('Carrinho');
     if (!estado.carrinho.length) {
       app.innerHTML = '<div class="container confirmacao"><h1 class="display">Seu carrinho está vazio.</h1><p>Escolha uma armação — e lembra: a 2ª sai com -' + estado.regras.leve2_pct + '%.</p><a class="btn btn-laranja" href="/modelos" data-link>Ver modelos</a></div>';

@@ -375,7 +375,8 @@
   // Sem cadastro: quem decide é o servidor, pelo CPF/e-mail/telefone do checkout.
   // Aqui só o aviso: aparece uma vez, no 2º modelo aberto (sinal de interesse),
   // e some pra sempre depois que o navegador fecha uma compra.
-  var POPUP_1A = { desktop: '/popup-1a-compra-desktop.webp', mobile: '/popup-1a-compra-mobile.webp', modelosAteAviso: 2 };
+  // Pop-up do cupom de 1ª compra: abre uma vez, no 1º acesso (marca no navegador: sa_popup_cupom).
+  var POPUP_1A = { desktop: '/popup-cupom-desktop.webp', mobile: '/popup-cupom-mobile.webp', cupom: 'PRIMEIRACOMPRA', pct: 40, esperaMs: 4000 };
   function pct1a() { return Number(estado.regras.primeira_compra_pct) || 0; }
   function jaComprou() { return !!ler('sa_ja_comprou', false); }
   function oferta1aAtiva() { return pct1a() > 0 && !jaComprou(); }
@@ -383,29 +384,32 @@
   function registrarModeloVisto(codigo) {
     var vistos = ler('sa_vistos', []);
     if (vistos.indexOf(codigo) < 0) { vistos.push(codigo); gravar('sa_vistos', vistos.slice(-30)); }
-    if (!oferta1aAtiva() || ler('sa_popup_1a', null)) return;
-    // Baixa a arte já no 1º modelo, pra ela estar pronta quando o aviso abrir.
-    if (vistos.length >= POPUP_1A.modelosAteAviso - 1) new Image().src = imagemPopup1a();
-    if (vistos.length >= POPUP_1A.modelosAteAviso) estado.timers.push(setTimeout(abrirPopup1a, 1500));
+  }
+  // 1º acesso: quem nunca viu o pop-up, não comprou e não está com cupom. Fora do carrinho/pagamento/conta.
+  function agendarPopup1a(nav) {
+    if (ler('sa_popup_cupom', null) || jaComprou() || estado.cupom) return;
+    if (/^(carrinho|checkout|pix|conta)$/.test(nav || '') || /^\/(checkout|pix|carrinho|conta|admin)/.test(location.pathname)) return;
+    new Image().src = imagemPopup1a();   // baixa a arte antes de abrir
+    estado.timers.push(setTimeout(abrirPopup1a, POPUP_1A.esperaMs));
   }
   function abrirPopup1a() {
-    if (document.getElementById('popup-1a')) return;
-    gravar('sa_popup_1a', Date.now());
+    if (document.getElementById('popup-1a') || ler('sa_popup_cupom', null)) return;
+    gravar('sa_popup_cupom', Date.now());
     var el = document.createElement('div');
     el.id = 'popup-1a';
     el.className = 'popup-1a';
     el.innerHTML = '<div class="popup-1a-caixa" role="dialog" aria-modal="true" aria-labelledby="popup-1a-titulo">' +
       '<button type="button" class="popup-1a-fechar" data-action="fechar-1a" aria-label="Fechar">×</button>' +
-      '<picture class="popup-1a-arte"><source media="(min-width: 820px)" srcset="' + POPUP_1A.desktop + '"><img src="' + POPUP_1A.mobile + '" alt="Só Armação: ' + pct1a() + '% off na primeira compra" width="1080" height="810"></picture>' +
+      '<button type="button" class="popup-1a-arte-btn" data-action="usar-cupom-1a" aria-label="Usar o cupom ' + POPUP_1A.cupom + '"><picture class="popup-1a-arte"><source media="(min-width: 820px)" srcset="' + POPUP_1A.desktop + '"><img src="' + POPUP_1A.mobile + '" alt="Só Armação: ' + POPUP_1A.pct + '% de desconto em qualquer modelo com o cupom ' + POPUP_1A.cupom + '" width="1080" height="810"></picture></button>' +
       '<div class="popup-1a-texto">' +
-        '<h2 class="display" id="popup-1a-titulo">' + pct1a() + '% off na sua 1ª compra</h2>' +
-        '<p>Já vai aplicado no checkout: sem cupom e sem cadastro. Vale pra quem ainda não comprou com a gente e soma com o -' + estado.regras.leve2_pct + '% da 2ª armação.</p>' +
-        '<button type="button" class="btn btn-laranja btn-bloco" data-action="fechar-1a">Bora escolher</button>' +
+        '<h2 class="display" id="popup-1a-titulo">' + POPUP_1A.pct + '% off na sua 1ª compra</h2>' +
+        '<p>Use o cupom <b>' + POPUP_1A.cupom + '</b> — a gente já deixa aplicado no seu carrinho. Vale em qualquer modelo, só no primeiro pedido (por CPF).</p>' +
+        '<button type="button" class="btn btn-laranja btn-bloco" data-action="usar-cupom-1a">Quero meus ' + POPUP_1A.pct + '% →</button>' +
       '</div></div>';
     document.body.appendChild(el);
     requestAnimationFrame(function () { el.classList.add('aberto'); });
     var btn = el.querySelector('.btn'); if (btn) btn.focus();
-    track('primeira_compra_aviso', {});
+    track('view_promotion', { promotion_id: POPUP_1A.cupom, promotion_name: 'Pop-up 1ª compra ' + POPUP_1A.pct + '%' });
   }
   function fecharPopup1a() {
     var el = document.getElementById('popup-1a');
@@ -513,7 +517,7 @@
     var precisaCatalogo = rota.nav !== 'ajuda' || !estado.catalogo;
     if (precisaCatalogo && !estado.catalogo) {
       app.innerHTML = '<div class="carregando"><span class="spinner"></span> Carregando o catálogo…</div>';
-      carregarCatalogo().then(function () { rota.view(m); track('page_view', { page: rota.nav }); renovarSeVelho(); }).catch(function (e) {
+      carregarCatalogo().then(function () { rota.view(m); track('page_view', { page: rota.nav }); renovarSeVelho(); agendarPopup1a(rota.nav); }).catch(function (e) {
         console.error(e);
         app.innerHTML = '<div class="container institucional"><h1 class="display">Catálogo indisponível</h1><p>Não conseguimos carregar os modelos agora. <button class="link" data-action="recarregar">Tentar de novo</button></p></div>';
       });
@@ -2424,6 +2428,12 @@
     }
     else if (acao === 'qtd') { alterarQtd(el.dataset.sku, Number(el.dataset.delta)); geracao++; viewCarrinho(); }
     else if (acao === 'remover') { removerDoCarrinho(el.dataset.sku); geracao++; viewCarrinho(); }
+    else if (acao === 'usar-cupom-1a') {
+      estado.cupom = POPUP_1A.cupom; gravar('sa_cupom', estado.cupom);
+      track('select_promotion', { promotion_id: POPUP_1A.cupom, promotion_name: 'Pop-up 1ª compra ' + POPUP_1A.pct + '%' });
+      fecharPopup1a();
+      toast('Cupom ' + POPUP_1A.cupom + ' aplicado! Escolha seus óculos — o desconto aparece no carrinho.', 4000);
+    }
     else if (acao === 'aplicar-cupom' || acao === 'remover-cupom') {
       var campoCupom = document.getElementById('cupom');
       var cod = acao === 'aplicar-cupom' ? String(campoCupom ? campoCupom.value : '').trim().toUpperCase().replace(/\s+/g, '') : '';

@@ -767,3 +767,13 @@ body[data-tela="pagamento"] .wa-botao, body[data-tela="pagamento"] .wa-painel { 
 .wa-erro:empty { display: none; }
 .wa-letrinha { margin: 0; font-size: 11.5px; line-height: 1.4; color: var(--texto-suave); }
 .wa-novo { justify-self: center; font-size: 13px; }
+
+/* Cupom (carrinho e checkout) */
+.cupom { margin: 10px 0; font-size: 14px; }
+.cupom summary { cursor: pointer; font-weight: 700; color: var(--verde); }
+.cupom-linha { display: flex; gap: 8px; align-items: center; justify-content: space-between; margin-top: 8px; }
+.cupom-linha input { flex: 1; min-width: 0; text-transform: uppercase; }
+.cupom.ok .cupom-linha, .cupom.erro .cupom-linha { margin-top: 0; }
+.cupom.ok { color: var(--verde); }
+.cupom.erro small { color: #b42318; }
+.cupom small { display: block; margin-top: 4px; }

@@ -154,12 +154,24 @@
     carrinho: ler('sa_cart_v2', []),
     cep: ler('sa_cep', ''),
     freteOpcao: ler('sa_frete', 'ECONOMICO'),  // 'ECONOMICO' | 'EXPRESSO' | 'FULL'
+    cupom: ler('sa_cupom', ''),  // cupom digitado (o servidor decide se vale)
     cotacao: null,         // último resumo do /api/cotar
     cotacaoErro: '',
     form: ler('sa_checkout', {}, sessionStorage),
     pix: ler('sa_pix', null, sessionStorage),
     timers: []
   };
+  // Link com ?cupom=CODIGO (anúncio, e-mail): já deixa o cupom aplicado no carrinho.
+  try {
+    var cupomUrl = new URLSearchParams(location.search).get('cupom');
+    if (cupomUrl && /^[A-Za-z0-9]{3,40}$/.test(cupomUrl)) { estado.cupom = cupomUrl.toUpperCase(); gravar('sa_cupom', estado.cupom); }
+  } catch (e) { /* navegador antigo */ }
+  // Enter no campo do cupom aplica o cupom (no checkout ele fica dentro do formulário de pagamento).
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' || !e.target || e.target.id !== 'cupom') return;
+    e.preventDefault();
+    var b = document.querySelector('[data-action="aplicar-cupom"]'); if (b) b.click();
+  });
 
   function limparTimers() {
     estado.timers.forEach(function (t) { clearInterval(t); clearTimeout(t); });
@@ -325,6 +337,7 @@
     var cepLimpo = digitos(cep);
     if (cepLimpo.length === 8) body.cep = cepLimpo;
     if (cliente && cpfValido(cliente.cpf)) body.cliente = cliente;
+    if (estado.cupom) body.cupom = estado.cupom;
     return fetch(CONFIG.api + '/api/cotar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, dados: d }; }); })
       .catch(function (e) { if (e && /fetch|network|json/i.test(String(e.message))) throw new Error('Não foi possível calcular o pedido agora. Confira sua conexão e tente de novo.'); throw e; })
@@ -403,8 +416,21 @@
   // Abaixo do total (carrinho e checkout): quanto o pedido fica na 1ª compra, antes
   // do CPF. O valor vem do servidor (resumo.previa_primeira), igual ao que será
   // cobrado depois de confirmado. `d` é a resposta inteira do /api/cotar.
+  // Campo de cupom (carrinho e checkout). `d` é a resposta do /api/cotar.
+  function cupomHtml(d) {
+    var cu = d && d.cupom;
+    if (estado.cupom) {
+      var ok = cu && (cu.status === 'aplicado' || cu.status === 'pendente');
+      return '<div class="cupom ' + (ok ? 'ok' : 'erro') + '"><div class="cupom-linha"><span>' + (ok ? '✓ ' : '') + 'Cupom <b>' + h(estado.cupom) + '</b></span>' +
+        '<button type="button" class="link" data-action="remover-cupom">remover</button></div>' +
+        (cu && cu.mensagem ? '<small>' + h(cu.mensagem) + '</small>' : '') + '</div>';
+    }
+    return '<details class="cupom"><summary>Tem cupom de desconto?</summary><div class="cupom-linha">' +
+      '<input id="cupom" name="cupom_codigo" autocomplete="off" autocapitalize="characters" placeholder="Código do cupom" maxlength="40">' +
+      '<button type="button" class="btn btn-verde" data-action="aplicar-cupom">Aplicar</button></div></details>';
+  }
   function nota1aHtml(d, noCheckout) {
-    if (!oferta1aAtiva() || !d || !d.resumo) return '';
+    if (!oferta1aAtiva() || !d || !d.resumo || estado.cupom) return '';
     var pc = d.primeira_compra || {}, pv = d.resumo.previa_primeira;
     if (d.resumo.desconto_primeira > 0) return '';
     if (pc.verificado && pc.ja_comprou) return '<p class="nota-1a volta">Você já é cliente Só Armação 💚 O desconto de 1ª compra vale só no primeiro pedido.</p>';
@@ -415,8 +441,13 @@
   }
   // Balão preso ao campo de CPF no checkout: diz o que ativa o desconto e confirma quando ativou.
   function bolha1aHtml(d) {
+    var r = d && d.resumo, pc = (d && d.primeira_compra) || {}, cu = d && d.cupom;
+    if (estado.cupom && cu) {
+      if (cu.status === 'aplicado' && r && r.cupom) return '<div class="bolha-1a ok" role="status">✓ Cupom ' + h(cu.codigo) + ' confirmado: -' + h(fmt(r.desconto_primeira)) + '</div>';
+      if (cu.status === 'pendente') return '<div class="bolha-1a" role="status"><span class="bolha-tag">' + h(cu.codigo) + '</span> Preencha seu CPF para confirmar o cupom</div>';
+      return '';
+    }
     if (!oferta1aAtiva()) return '';
-    var r = d && d.resumo, pc = (d && d.primeira_compra) || {};
     if (r && r.desconto_primeira > 0) return '<div class="bolha-1a ok" role="status">✓ Desconto de 1ª compra ativado: -' + h(fmt(r.desconto_primeira)) + '</div>';
     // Já comprou (por CPF, e-mail ou WhatsApp): boas-vindas de volta, sem cara de recusa.
     if (pc.verificado && pc.ja_comprou) return '<div class="bolha-1a volta" role="status">💚 Que bom te ver de novo! Você já comprou com a gente, então o desconto de 1ª compra já foi usado' +
@@ -1192,7 +1223,7 @@
     if (!r) return '';
     return '<div class="resumo-linha"><span>Subtotal (' + r.unidades + ' ' + (r.unidades === 1 ? 'armação' : 'armações') + ')</span><span>' + h(fmt(r.subtotal)) + '</span></div>' +
       (r.desconto > 0 ? '<div class="resumo-linha desconto"><span>2ª armação com -' + (r.desconto_pct || estado.regras.leve2_pct) + '%' + (r.unidades_com_desconto > 1 ? ' (×' + r.unidades_com_desconto + ')' : '') + '</span><span>-' + h(fmt(r.desconto)) + '</span></div>' : '') +
-      (r.desconto_primeira > 0 ? '<div class="resumo-linha desconto"><span>1ª compra -' + r.desconto_primeira_pct + '%</span><span>-' + h(fmt(r.desconto_primeira)) + '</span></div>' : '') +
+      (r.desconto_primeira > 0 ? '<div class="resumo-linha desconto"><span>' + (r.cupom ? 'Cupom ' + h(r.cupom) : '1ª compra') + ' -' + r.desconto_primeira_pct + '%</span><span>-' + h(fmt(r.desconto_primeira)) + '</span></div>' : '') +
       '<div class="resumo-linha"><span>Frete' + (r.frete_titulo ? ' · ' + h(r.frete_titulo) : '') + (r.frete_prazo ? ' <small>(' + h(r.frete_prazo) + ')</small>' : '') + '</span><span>' + (r.frete == null ? 'informe o CEP' : (r.frete === 0 ? 'grátis' : h(fmt(r.frete)))) + '</span></div>' +
       '<div class="resumo-linha total"><span>Total</span><span class="num">' + h(fmt(r.total)) + '</span></div>';
   }
@@ -1222,7 +1253,7 @@
           '<form class="cep-linha" data-action="cep"><div class="campo"><label for="cep">CEP pra calcular o frete</label><input id="cep" name="cep" inputmode="numeric" autocomplete="postal-code" placeholder="00000-000" value="' + h(estado.cep) + '" maxlength="9"></div><button class="btn btn-verde" type="submit" style="align-self:end">OK</button></form>' +
           (resumo && resumo.endereco ? '<p class="endereco-resolvido">' + h([resumo.endereco.logradouro, resumo.endereco.bairro, resumo.endereco.cidade ? resumo.endereco.cidade + '/' + resumo.endereco.uf : ''].filter(Boolean).join(', ')) + '</p>' : '') +
           (carregando ? '' : seletorFreteHtml(resumo ? resumo.resumo : null)) +
-          (carregando ? '<p class="endereco-resolvido"><span class="spinner"></span> Calculando…</p>' : resumoHtml(resumo ? Object.assign({}, resumo.resumo, { endereco: undefined }) : null) + nota1aHtml(resumo ? { resumo: resumo.resumo } : null, false)) +
+          (carregando ? '<p class="endereco-resolvido"><span class="spinner"></span> Calculando…</p>' : resumoHtml(resumo ? Object.assign({}, resumo.resumo, { endereco: undefined }) : null) + cupomHtml(resumo) + nota1aHtml(resumo ? { resumo: resumo.resumo } : null, false)) +
           avisoLentes(false) +
           '<a class="btn btn-laranja btn-bloco" href="/checkout" data-link' + (erro ? ' aria-disabled="true" style="pointer-events:none;opacity:.55"' : '') + '>Fechar pedido →</a>' +
           '<p class="endereco-resolvido">Pix aprovado na hora · cartão em até 6x · nota fiscal · troca grátis em até 7 dias úteis</p>' +
@@ -1232,7 +1263,7 @@
     var g = geracao;
     cotar(estado.cep).then(function (d) {
       if (g !== geracao) return;
-      render({ itens: d.resumo.itens, unidades: d.resumo.unidades, resumo: d.resumo, endereco: d.endereco }, '', false);
+      render({ itens: d.resumo.itens, unidades: d.resumo.unidades, resumo: d.resumo, endereco: d.endereco, cupom: d.cupom }, '', false);
       track('view_cart', { value: d.resumo.total, items: d.resumo.itens.map(function (i) { return { item_id: i.sku, item_name: i.nome, price: i.preco, quantity: i.qty }; }) });
     }).catch(function (e) { if (g === geracao) render(null, e.message, false); });
   }
@@ -1320,7 +1351,7 @@
             '<p class="ajuda" style="font-size:12px;color:var(--texto-suave)">Ao pagar, você concorda com os <a href="/termos" data-link>termos de uso</a> e a <a href="/privacidade" data-link>política de privacidade</a>.</p>' +
           '</div>' +
           '<div class="painel sticky"><h2 class="display">Seu pedido</h2>' +
-            (r ? '<div class="mini-itens">' + r.itens.map(function (i) { var local = estado.carrinho.find(function (c) { return c.sku === i.sku; }) || {}; return '<div class="mini-item">' + ((i.imagem || local.imagem) ? '<img src="' + h(foto(i.imagem || local.imagem)) + '" alt="">' : '<div></div>') + '<span>' + i.qty + 'x ' + h(i.nome) + '</span><strong>' + h(fmt(i.total)) + '</strong></div>'; }).join('') + '</div>' + seletorFreteHtml(r) + resumoHtml(r) + nota1aHtml(resumo, true) : '<p class="endereco-resolvido"><span class="spinner"></span> Calculando o pedido…</p>') +
+            (r ? '<div class="mini-itens">' + r.itens.map(function (i) { var local = estado.carrinho.find(function (c) { return c.sku === i.sku; }) || {}; return '<div class="mini-item">' + ((i.imagem || local.imagem) ? '<img src="' + h(foto(i.imagem || local.imagem)) + '" alt="">' : '<div></div>') + '<span>' + i.qty + 'x ' + h(i.nome) + '</span><strong>' + h(fmt(i.total)) + '</strong></div>'; }).join('') + '</div>' + seletorFreteHtml(r) + resumoHtml(r) + cupomHtml(resumo) + nota1aHtml(resumo, true) : '<p class="endereco-resolvido"><span class="spinner"></span> Calculando o pedido…</p>') +
           '</div>' +
         '</form></div>';
       if (foco) {
@@ -1351,7 +1382,7 @@
       gravar('sa_checkout', f, sessionStorage);
       if (mudouCep) { estado.cep = f.cep; gravar('sa_cep', estado.cep); }
       // CEP ou CPF novos mudam frete/1ª compra: recota; senão só redesenha.
-      if (mudouCep || (mudouCpf && oferta1aAtiva())) recotar(); else render(ultimaCotacao, '', false);
+      if (mudouCep || (mudouCpf && (oferta1aAtiva() || estado.cupom))) recotar(); else render(ultimaCotacao, '', false);
     }).catch(function () { /* conta fora do ar: segue como visitante */ });
     recotar().then(function () {
       if (ultimaCotacao) track('begin_checkout', { value: ultimaCotacao.resumo.total, items: ultimaCotacao.resumo.itens.map(function (i) { return { item_id: i.sku, item_name: i.nome, price: i.preco, quantity: i.qty }; }) });
@@ -1366,7 +1397,7 @@
       gravar('sa_checkout', f, sessionStorage);
       if (el.name === 'cep' && digitos(el.value).length === 8 && el.value !== estado.cep) { estado.cep = el.value; gravar('sa_cep', estado.cep); recotar(); }
       // CPF completo e válido: confere a 1ª compra na hora
-      else if (el.name === 'cpf' && oferta1aAtiva() && cpfValido(el.value) && chave1a() !== conferido) recotar();
+      else if (el.name === 'cpf' && (oferta1aAtiva() || estado.cupom) && cpfValido(el.value) && chave1a() !== conferido) recotar();
     };
     // Logado: cada campo preenchido já vai pro perfil da conta (próxima compra vem pronta).
     // O servidor só grava o que for válido; o CPF fica criptografado lá.
@@ -1396,7 +1427,7 @@
       // e-mail/telefone também contam pra 1ª compra: confere de novo ao sair do campo
       // (depois de o foco chegar no próximo campo: redesenhar no meio da troca de foco
       // apagava o campo novo e o que a pessoa começava a digitar nele)
-      if ((el.name === 'email' || el.name === 'telefone') && oferta1aAtiva() && chave1a() && chave1a() !== conferido) setTimeout(function () { if (g === geracao) recotar(); }, 0);
+      if ((el.name === 'email' || el.name === 'telefone') && (oferta1aAtiva() || estado.cupom) && chave1a() && chave1a() !== conferido) setTimeout(function () { if (g === geracao) recotar(); }, 0);
     };
     app.onsubmit = function (e) {
       if (!e.target.matches('[data-action="checkout"]')) return;
@@ -1415,6 +1446,7 @@
         cartao_salvo: salvo ? salvo.id : undefined,
         salvar_cartao: logado && f.metodo === 'CREDIT_CARD' && f.salvar_cartao !== false,
         frete: estado.freteOpcao,
+        cupom: estado.cupom || undefined,
         tracking: { ga_client_id: gaClientId(), ga_session_id: gaSessionId(), ads: cliqueAds(), fbp: cookie('_fbp'), fbc: cookie('_fbc'), source_url: location.href }
       };
       // Checkout passa pela função da própria loja (anti-robô BotID), que repassa pro backend.
@@ -2392,6 +2424,16 @@
     }
     else if (acao === 'qtd') { alterarQtd(el.dataset.sku, Number(el.dataset.delta)); geracao++; viewCarrinho(); }
     else if (acao === 'remover') { removerDoCarrinho(el.dataset.sku); geracao++; viewCarrinho(); }
+    else if (acao === 'aplicar-cupom' || acao === 'remover-cupom') {
+      var campoCupom = document.getElementById('cupom');
+      var cod = acao === 'aplicar-cupom' ? String(campoCupom ? campoCupom.value : '').trim().toUpperCase().replace(/\s+/g, '') : '';
+      if (acao === 'aplicar-cupom' && !cod) { if (campoCupom) campoCupom.focus(); return; }
+      estado.cupom = cod;
+      gravar('sa_cupom', cod);
+      if (cod) track('select_promotion', { promotion_id: cod, promotion_name: cod });
+      geracao++;
+      if (/\/checkout\/?$/.test(location.pathname)) viewCheckout(); else viewCarrinho();
+    }
     else if (acao === 'frete') {
       // Troca Econômico/Expresso: guarda a escolha e recota a tela atual
       // (o preço vem do servidor; nada de preço é decidido aqui).

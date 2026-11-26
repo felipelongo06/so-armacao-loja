@@ -269,6 +269,12 @@
     return lista;
   }
   function rotuloEstoque(n) { return n === 1 ? 'Última unidade' : 'Últimas ' + n + ' unidades'; }
+  // Preço "de" riscado (vem da API só quando é maior que o atual).
+  function riscado(v, grande) {
+    if (!(v && v.preco_de > v.preco)) return '';
+    var off = Math.round((1 - v.preco / v.preco_de) * 100);
+    return '<span class="preco-de"><s>' + h(fmt(v.preco_de)) + '</s>' + (grande && off >= 5 ? ' <b>-' + off + '%</b>' : '') + '</span>';
+  }
   function itemGA(p, v, qty) {
     return { item_id: v ? v.sku : p.codigo, item_name: p.nome + (v && v.cor ? ' — ' + v.cor : ''), item_category: p.formato || '', item_variant: v ? v.cor : undefined, price: v ? v.preco : p.preco, quantity: qty || 1 };
   }
@@ -543,7 +549,7 @@
         '<span class="card-nome">' + h(p.nome) + '</span>' +
         notaCardHtml(p) +
         (v.cor ? '<span class="card-cores">' + h(v.cor) + '</span>' : '') +
-        '<span class="card-preco"><span class="valor">' + h(fmt(v.preco)) + '</span><span class="no-pix">no Pix</span></span>' +
+        '<span class="card-preco">' + riscado(v) + '<span class="valor">' + h(fmt(v.preco)) + '</span><span class="no-pix">no Pix</span></span>' +
         '<span class="card-segunda">a 2ª sai por ' + h(fmt(precoSegunda(v.preco))) + '</span>' +
       '</div></a>';
   }
@@ -927,7 +933,7 @@
         galeriaHtml(fotos, p.nome + (v.cor ? ' ' + v.cor : ''), esgotado ? '<span class="badge esgotado">Esgotado</span>' : (v.estoque <= 5 ? '<span class="badge">' + rotuloEstoque(v.estoque) + '</span>' : '')) +
         '<div class="produto-info">' +
           '<div><span class="card-linha">' + h(p.formato || 'Armação') + (rotuloTipo(p, v) ? ' · ' + h(rotuloTipo(p, v)) : '') + (p.marca ? ' · ' + h(p.marca) : '') + '</span><h1 class="display">' + h(p.nome) + '</h1></div>' +
-          '<div class="preco-bloco"><span class="valor">' + h(fmt(v.preco)) + '<small>no Pix</small></span>' +
+          '<div class="preco-bloco">' + riscado(v, true) + '<span class="valor">' + h(fmt(v.preco)) + '<small>no Pix</small></span>' +
             '<span class="segunda">Levando 2, a 2ª sai por ' + h(fmt(precoSegunda(v.preco))) + '</span>' +
             '<span class="parcelas">ou no cartão em até 6x</span></div>' +
           (variacoes.length > 1 ? '<div class="cores"><span class="rotulo">Cor: ' + h(v.cor) + '</span><div class="opcoes">' + variacoes.map(function (x) {

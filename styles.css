@@ -231,6 +231,10 @@ input, select, textarea { font: inherit; color: inherit; }
 .card-preco { margin-top: 6px; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
 .card-preco .valor { font-family: var(--display); font-size: 24px; color: var(--laranja); letter-spacing: .5px; }
 .card-preco .no-pix { font-size: 12px; font-weight: 700; }
+.card-preco .preco-de { flex-basis: 100%; font-size: 13px; color: var(--texto-suave); }
+.preco-de s { text-decoration-thickness: 1.5px; }
+.preco-bloco .preco-de { font-size: 16px; color: var(--texto-suave); }
+.preco-bloco .preco-de b { color: var(--laranja); margin-left: 4px; }
 .card-segunda { font-size: 12px; font-weight: 700; color: var(--verde); }
 .vazio { padding: 40px 12px; text-align: center; color: var(--texto-suave); grid-column: 1 / -1; }
 

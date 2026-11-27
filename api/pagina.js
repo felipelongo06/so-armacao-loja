@@ -107,6 +107,8 @@ const resumo = (t, n = 155) => (t.length <= n ? t : t.slice(0, n - 1).replace(/\
 const urlProduto = (p) => String(p.url || `/p/${encodeURIComponent(p.codigo)}/`).split('?')[0];
 const variacoesOrdenadas = (p) => (p.variacoes || []).slice().sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
 const vende = (v) => v.estoque > 0 && v.preco > 0;
+// % de desconto da loja em todos os óculos (já incluído em `preco`; `preco_de` é o de tabela).
+const pctLoja = (cat) => Number(cat?.regras?.desconto_pct ?? 40) || 0;
 function precoMinimo(cat) {
   let min = null;
   for (const p of cat.produtos || []) for (const v of p.variacoes || []) if (vende(v) && (min == null || v.preco < min)) min = v.preco;
@@ -163,7 +165,7 @@ function paginaProduto(cat, codigo, cor) {
     };
   }
   const p = achado.produto;
-  const l2 = cat.regras?.leve2_pct ?? 40;
+  const l2 = pctLoja(cat);
   const vs = variacoesOrdenadas(p);
   const v = achado.variacao || vs.find((x) => cor && (x.cor_slug || slug(x.cor)) === cor) || vs.find((x) => x.estoque > 0) || vs[0] || {};
   const url = urlProduto(p);
@@ -197,7 +199,7 @@ function paginaProduto(cat, codigo, cor) {
         `<div><span class="card-linha">${h([p.formato || 'Armação', TIPOS[v.tipo || p.tipo], p.marca].filter(Boolean).join(' · '))}</span><h1 class="display">${h(p.nome)}</h1></div>` +
         (nota ? `<p class="aval-resumo">Nota ${h(String(Number(nota.media).toFixed(1)).replace('.', ','))} de 5, em ${nota.total} avaliaç${nota.total === 1 ? 'ão' : 'ões'} de compra verificada</p>` : '') +
         `<div class="preco-bloco">${v.preco_de > v.preco ? `<s>${h(fmt(v.preco_de))}</s> ` : ''}<span class="valor">${h(fmt(v.preco))} <small>no Pix</small></span>` +
-          `<span class="segunda">Levando 2, a 2ª sai por ${h(fmt(v.preco * (1 - l2 / 100)))}</span><span class="parcelas">ou no cartão em até 6x</span></div>` +
+          (l2 ? `<span class="segunda">${l2}% OFF em todos os óculos, em qualquer quantidade</span>` : '') + `<span class="parcelas">ou no cartão em até 6x</span></div>` +
         (vs.length ? `<div class="cores"><span class="rotulo">${vs.length > 1 ? `${vs.length} cores` : 'Cor'}:</span><ul>` +
           vs.map((x) => `<li><a href="${h(x.url || url)}" data-link>${h(x.cor)}</a>${x.tipo === 'sol' ? ' (sol)' : ''}${x.estoque > 0 ? '' : ' — esgotada'}</li>`).join('') + '</ul></div>' : '') +
         `<p class="aviso-lentes" role="note">${h(avisoLentes)} <a href="/como-comprar" data-link>Como funciona</a></p>` +
@@ -227,6 +229,8 @@ function paginaProduto(cat, codigo, cor) {
       url: SITE + (x.url || url),
       priceCurrency: 'BRL',
       price: Number(x.preco).toFixed(2),
+      // Preço de tabela riscado (o desconto da loja já está em `price`).
+      ...(x.preco_de > x.preco ? { priceSpecification: { '@type': 'UnitPriceSpecification', priceType: 'https://schema.org/StrikethroughPrice', price: Number(x.preco_de).toFixed(2), priceCurrency: 'BRL' } } : {}),
       availability: x.estoque > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
       itemCondition: 'https://schema.org/NewCondition',
       seller: { '@type': 'Organization', name: 'Só Armação' },
@@ -263,16 +267,16 @@ function paginaProduto(cat, codigo, cor) {
 }
 
 function paginaHome(cat) {
-  const l2 = cat.regras?.leve2_pct ?? 40;
+  const l2 = pctLoja(cat);
   const min = precoMinimo(cat);
   const produtos = (cat.produtos || []).filter((p) => p.estoque_total > 0);
   const corpo = '<section class="secao"><div class="container">' +
     `<h1 class="display">Armações de óculos de grau a partir de ${h(fmt(min))}</h1>` +
-    `<p>A Só Armação é uma loja 100% online de armações para óculos de grau e óculos de sol, de São Bernardo do Campo/SP. Vendemos só a armação, sem lentes de grau: você leva à ótica da sua preferência com a sua receita. Preço baixo todo dia, Pix aprovado na hora, nota fiscal em todo pedido e troca grátis em até 7 dias úteis. Levando 2, a 2ª armação sai com ${l2}% de desconto.</p>` +
+    `<p>A Só Armação é uma loja 100% online de armações para óculos de grau e óculos de sol, de São Bernardo do Campo/SP. Vendemos só a armação, sem lentes de grau: você leva à ótica da sua preferência com a sua receita. Preço baixo todo dia, Pix aprovado na hora, nota fiscal em todo pedido e troca grátis em até 7 dias úteis. Todos os óculos estão com ${l2}% de desconto, em qualquer quantidade, já no preço.</p>` +
     `<h2 class="display">Todos os modelos (${produtos.length})</h2>` + listaModelos(produtos) +
     '<h2 class="display">Como funciona</h2><ol>' +
       '<li><strong>Escolha a armação.</strong> Filtre por formato e cor. Todas as medidas estão na página do modelo.</li>' +
-      `<li><strong>Adicione ao carrinho.</strong> Levando 2, a 2ª sai com -${l2}%. O frete é calculado pelo seu CEP.</li>` +
+      `<li><strong>Adicione ao carrinho.</strong> Todos os óculos estão com ${l2}% OFF, em qualquer quantidade, e o preço da página já é o com desconto. O frete é calculado pelo seu CEP.</li>` +
       '<li><strong>Pague no Pix ou cartão.</strong> No Pix a confirmação é automática, em segundos. No cartão, dá pra parcelar.</li>' +
       '<li><strong>Receba e leve à ótica.</strong> Chega com rastreio e nota fiscal. Aí é só levar à sua ótica, com a receita, para colocar as lentes de grau.</li>' +
     '</ol><h2 class="display">Perguntas frequentes</h2>' + faqHtml(l2) +
@@ -300,7 +304,7 @@ function paginaModelos(cat, tipo) {
 }
 
 function paginaAjuda(cat) {
-  const l2 = cat?.regras?.leve2_pct ?? 40;
+  const l2 = pctLoja(cat);
   const corpo = '<div class="container institucional">' + migalhas([['Início', '/'], ['Ajuda', null]]) +
     '<h1 class="display">Ajuda</h1><p>Tudo o que você precisa saber antes e depois de comprar.</p><ul class="ajuda-links">' +
     Object.entries(C.paginas).map(([k, pg]) => `<li><a href="/${k}" data-link>${h(pg.t)}</a></li>`).join('') +
@@ -362,7 +366,7 @@ const naoAchou = (caminho, voltar) => ({
 
 // /llms.txt: resumo da loja em Markdown pra assistentes de IA (llmstxt.org).
 function llmsTxt(cat) {
-  const l2 = cat.regras?.leve2_pct ?? 40;
+  const l2 = pctLoja(cat);
   const produtos = (cat.produtos || []).filter((p) => p.estoque_total > 0);
   const linha = (p) => {
     const v = variacoesOrdenadas(p).find(vende) || {};
@@ -376,7 +380,7 @@ function llmsTxt(cat) {
     `> Loja 100% online de armações para óculos de grau (vendidas sem lentes de grau) e óculos de sol, com sede em São Bernardo do Campo/SP e entrega para todo o Brasil. Preços a partir de ${fmt(precoMinimo(cat))}, nota fiscal em todo pedido, Pix aprovado na hora ou cartão em até 6x, e troca grátis em até 7 dias úteis.`,
     '',
     `- As armações de grau chegam sem lentes: o cliente leva à ótica da preferência dele, com a receita, para colocar as lentes. A loja não faz exame de vista nem vende lentes de grau.`,
-    `- Levando 2 armações no mesmo pedido, a 2ª (a de menor valor) sai com ${l2}% de desconto.`,
+    `- Todos os óculos estão com ${l2}% de desconto, em qualquer quantidade. O preço listado já é o com desconto; não há cupom.`,
     '- Entrega em até 3 dias úteis na Grande São Paulo e até 5 dias úteis no resto do Brasil, contados da confirmação do pagamento.',
     '- Cada página de modelo traz as medidas (largura da lente, ponte, haste, largura frontal), o peso, o material e as cores.',
     `- Contato: ${C.email}. Empresa: So Armacao Comercio de Armacoes Ltda, Avenida Armando Italo Setti, 520, sala 81, São Bernardo do Campo/SP.`,

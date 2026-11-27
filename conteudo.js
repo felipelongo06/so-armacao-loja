@@ -14,7 +14,7 @@
     'como-comprar': { t: 'Como comprar', d: 'Passo a passo pra comprar sua armação na Só Armação.', b: [
       ['Antes de tudo: vendemos só a armação', 'Nenhum dos nossos produtos vem com lentes de grau. Você compra a armação aqui e uma ótica da sua escolha coloca as lentes do seu grau. Os óculos de sol vêm com lentes solares, sem grau.'],
       ['1 — Escolha a armação', 'Navegue pelos modelos e use os filtros de formato e cor. Todas as medidas (lente, ponte, haste e largura frontal) estão na página de cada modelo — compare com um óculos que já serve bem em você.'],
-      ['2 — Adicione ao carrinho', 'Levando 2 armações no mesmo pedido, a 2ª (a de menor valor) sai com 40% de desconto — é o único desconto da loja. O frete é um só pro pedido inteiro e é calculado pelo seu CEP.'],
+      ['2 — Adicione ao carrinho', 'Todos os óculos estão com 40% de desconto, em qualquer quantidade, e o preço da página já é o com desconto (o de tabela aparece riscado). Não precisa de cupom. O frete é um só pro pedido inteiro e é calculado pelo seu CEP.'],
       ['3 — Informe seus dados', 'Nome, CPF, e-mail, WhatsApp, CEP e número. O endereço é preenchido sozinho a partir do CEP.'],
       ['4 — Pague no Pix ou no cartão', 'No Pix, escaneie o QR Code ou copie o código: a confirmação é automática, em segundos. No cartão de crédito, o pagamento abre numa página segura da operadora e você pode parcelar.'],
       ['5 — Receba em casa', 'Até 3 dias úteis na Grande São Paulo e até 5 dias úteis pro resto do Brasil, contados da confirmação do pagamento. O rastreio chega no seu e-mail.'],
@@ -37,7 +37,7 @@
       ['Reembolso', 'Feito na mesma forma de pagamento assim que a armação chegar e for conferida: no Pix, em até 2 dias úteis; no cartão, o estorno aparece na fatura conforme o prazo da operadora.']] },
     privacidade: { t: 'Política de privacidade', d: 'Como a Só Armação coleta, usa e protege seus dados (LGPD).', b: [
       ['O que coletamos', 'Nome, CPF, e-mail, WhatsApp e endereço — o necessário pra processar o pedido, emitir a nota fiscal e entregar. Também usamos cookies e ferramentas de medição (Google Analytics, Google Ads, Meta e Microsoft Clarity) pra entender como a loja é usada e mostrar nossos anúncios pra quem já visitou o site. O Clarity registra cliques, rolagem e movimentos na página pra gente melhorar o site; o que você digita nos campos fica mascarado e não é gravado.'],
-      ['Como usamos', 'Pra entregar seu pedido, emitir nota, calcular frete, confirmar o pagamento, conferir se é a sua primeira compra (pro desconto de 1ª compra, pelo CPF, e-mail e WhatsApp dos pedidos anteriores) e, se você autorizar, avisar sobre novidades. O CPF é guardado só de forma protegida (hash) no nosso banco.'],
+      ['Como usamos', 'Pra entregar seu pedido, emitir nota, calcular frete, confirmar o pagamento, e, se você autorizar, avisar sobre novidades. O CPF é guardado só de forma protegida (hash) no nosso banco.'],
       ['Conta e login', 'Criar conta é opcional. Se você criar, guardamos seu nome, e-mail e senha (protegida, sem que ninguém da loja consiga ler) ou, no login com Google, o nome e o e-mail que o Google informa. Na conta ficam seus pedidos, favoritos, os dados de entrega e contato que você preenche no checkout (pra próxima compra vir pronta; o CPF fica guardado criptografado) e, se você pedir, o cartão salvo: o número do cartão fica com a instituição de pagamento (Asaas) e a gente só vê a bandeira e os 4 últimos números. Quando você está logado, as ferramentas de medição recebem um código interno da sua conta (nunca seu e-mail ou CPF), pra entendermos como o site é usado em diferentes aparelhos. Pra excluir a conta, escreva pra ' + EMAIL + '.'],
       ['Com quem compartilhamos', 'Só com quem precisa pra operação: a instituição de pagamento (Pix e cartão), a transportadora e o sistema emissor de nota fiscal. Não vendemos seus dados.'],
       ['Seus direitos (LGPD)', 'Você pode pedir acesso, correção ou exclusão dos seus dados a qualquer momento pelo e-mail ' + EMAIL + '.']] },
@@ -54,14 +54,14 @@
       ['Endereço', 'Avenida Armando Italo Setti, 520, sala 81 — Baeta Neves, São Bernardo do Campo/SP, CEP 09760-280. Atendimento só online: não temos loja física, e é isso que mantém o preço baixo.'],
       ['Desconfiou de golpe?', 'A Só Armação nunca pede senha, código de segurança ou Pix fora do checkout do site soarmacao.com.br.']] }
   };
-  // Perguntas frequentes. l2 = % de desconto da 2ª armação (vem das regras do catálogo).
-  function faq(l2) {
+  // Perguntas frequentes. pct = % de desconto da loja em todos os óculos (vem das regras do catálogo).
+  function faq(pct) {
     return [
       ['A armação vem com lentes de grau?', 'Não. Nenhum dos nossos produtos vem com lentes de grau: vendemos só a armação (os óculos de sol vêm com lentes solares, sem grau). Quando a armação chegar, leve à ótica da sua preferência com a sua receita, ou faça o exame de vista, e peça para colocarem as lentes do seu grau.'],
       ['Vocês fazem exame de vista ou montam os óculos?', 'Não. A gente não faz exame de vista, não vende lentes de grau e não monta óculos. Quem coloca as lentes é a ótica que você escolher. Dica: confira as medidas da armação na página do modelo e compare com um óculos que já serve bem em você.'],
       ['Como funciona a troca grátis?', 'Compra online tem direito de arrependimento: em até 7 dias úteis depois de receber, se não serviu, não gostou ou mudou de ideia, a gente troca por outro modelo ou devolve o dinheiro — sem custo, você não paga o frete da devolução. Depois desse prazo, a troca é só por defeito de fabricação.'],
       ['Quanto tempo demora pra chegar?', 'Até 3 dias úteis na Grande São Paulo e até 5 dias úteis pro resto do Brasil, contados da confirmação do pagamento. O código de rastreio chega no seu e-mail.'],
-      ['Como funciona o desconto da 2ª armação?', 'Levando 2 armações no mesmo pedido, a 2ª (a de menor valor) sai com ' + l2 + '% de desconto. É o único desconto da loja e aparece sozinho no carrinho. A cada 2 armações, uma sai com ' + l2 + '% off.'],
+      ['Como funciona o desconto?', 'Todos os óculos estão com ' + pct + '% de desconto, em qualquer quantidade: leve 1 ou leve 5, cada um sai com ' + pct + '% off. O preço mostrado na loja já é o com desconto, com o preço de tabela riscado ao lado. Não precisa de cupom, e o desconto não vale para o frete.'],
       ['Tem nota fiscal?', 'Sempre. Todo pedido sai com NF-e no seu nome, enviada por e-mail.'],
       ['E se a armação vier com defeito?', 'Passados os 7 dias úteis de arrependimento, a troca é só por defeito de fabricação, como manda o Código de Defesa do Consumidor: até 90 dias depois do recebimento. É só mandar um e-mail com o número do pedido e uma foto. Não oferecemos garantia além do que a lei determina.'],
       ['Quais as formas de pagamento?', 'Pix, com confirmação automática em segundos, ou cartão de crédito, parcelado. O cartão é processado numa página segura da operadora — seus dados não passam pelo nosso site.']
@@ -168,7 +168,7 @@
       d: 'Armações de óculos de grau femininas: gatinho, redonda, quadrada e mais, com troca grátis em até 7 dias úteis.',
       texto: ['As armações femininas da Só Armação vão do gatinho clássico às redondas e quadradas, em metal, acetato colorido e materiais ultraleves. Os modelos unissex também aparecem aqui.',
         'Para escolher, comece pelo formato do rosto ([veja o guia](/guia/armacao-para-cada-tipo-de-rosto)) e depois pelo tamanho: rosto mais fino pede armação P ou M, rosto mais largo pede G. Cada modelo mostra a largura frontal em milímetros.',
-        'Levando 2 armações no mesmo pedido, a 2ª sai com desconto, o que ajuda a ter uma para o trabalho e outra para o fim de semana.'] },
+        'Todos os modelos estão com 40% de desconto, em qualquer quantidade, o que ajuda a ter uma para o trabalho e outra para o fim de semana.'] },
     'armacao-masculina': { t: 'Armação de óculos masculina', filtro: { genero: ['Masculino', 'Unissex'] },
       d: 'Armações de óculos de grau masculinas, retangulares, quadradas e redondas, com troca grátis em até 7 dias úteis.',
       texto: ['As armações masculinas da Só Armação têm desenho mais reto e discreto, em metal e acetato, nos formatos retangular, quadrado e redondo. Os modelos unissex também aparecem aqui.',
@@ -183,7 +183,7 @@
       d: 'Armações de óculos de grau até R$ 100 no Pix, com nota fiscal e troca grátis em até 7 dias úteis.',
       texto: ['Aqui estão as armações de grau que custam até R$ 100 no Pix. São os mesmos modelos do resto da loja, com nota fiscal, troca grátis em até 7 dias úteis e o mesmo padrão de acabamento.',
         'A Só Armação vende só a armação e a vende online, sem loja física e sem marca de grife no preço. Por isso consegue cobrar menos. A lente de grau você coloca na ótica que preferir e paga só por ela e pela montagem. [Veja quanto custa fazer óculos de grau](/guia/quanto-custa-fazer-oculos-de-grau).',
-        'Levando 2, a 2ª armação ainda sai com desconto.'] }
+        'Os preços já contam com os 40% de desconto que valem para todos os óculos da loja.'] }
   };
   function naCategoria(cat, p) {
     var f = cat.filtro;
@@ -269,7 +269,7 @@
           ['Lentes', 'Tipo (visão simples ou multifocal), espessura (índice de refração) e tratamentos, como antirreflexo, filtro de luz azul e lente que escurece no sol.'],
           ['Montagem', 'Corte das lentes no formato da armação. Algumas óticas incluem no preço das lentes; outras cobram à parte para armação trazida pelo cliente.']] } },
         { h: 'O que mais encarece as lentes', lista: ['Multifocal custa bem mais que visão simples.', 'Grau alto pede lente mais fina (índice maior), que é mais cara.', 'Cada tratamento extra soma no preço. Antirreflexo costuma valer a pena; os outros dependem do seu uso.'] },
-        { h: 'Como pagar menos', ol: ['Compre a armação à parte. [Veja armações até R$ 100](/armacoes/armacao-ate-100-reais).', 'Peça orçamento das lentes em duas ou três óticas, com a mesma receita e os mesmos tratamentos.', 'Pergunte se a montagem está incluída.', 'Precisa de dois óculos? Na Só Armação, levando 2 armações, a 2ª sai com desconto.'] }
+        { h: 'Como pagar menos', ol: ['Compre a armação à parte. [Veja armações até R$ 100](/armacoes/armacao-ate-100-reais).', 'Peça orçamento das lentes em duas ou três óticas, com a mesma receita e os mesmos tratamentos.', 'Pergunte se a montagem está incluída.', 'Precisa de dois óculos? Na Só Armação, todas as armações estão com 40% de desconto, em qualquer quantidade.'] }
       ] }
   };
   function guiaHtml(slug, g, precoMin) {

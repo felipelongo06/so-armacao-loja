@@ -5,11 +5,12 @@
 (function () {
   'use strict';
 
+  // sa_catalogo_v2: chave nova em 27/11/2026 (preços com 40%), pra ninguém abrir com o catálogo velho guardado.
   // Começa a baixar o catálogo já aqui, em paralelo com fontes/CSS/JS (o app.js aproveita
   // esta mesma requisição). Se o navegador já guardou um catálogo recente, nem precisa.
   (function () {
     if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) return;
-    try { var c = JSON.parse(localStorage.getItem('sa_catalogo') || 'null'); if (c && c.dados && Date.now() - c.ts < 864e5) return; } catch (e) {}
+    try { var c = JSON.parse(localStorage.getItem('sa_catalogo_v2') || 'null'); if (c && c.dados && Date.now() - c.ts < 864e5) return; } catch (e) {}
     window.__catalogo = fetch('https://api.soarmacao.com.br/api/catalogo', { cache: 'no-store' })
       .then(function (r) { if (!r.ok) throw new Error('catalogo ' + r.status); return r.json(); });
     window.__catalogo.catch(function () {});

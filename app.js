@@ -1,6 +1,6 @@
 /* Só Armação — loja
  * Uma página só (SPA). O catálogo vem do backend (/api/catalogo, alimentado pelo Bling);
- * preço, desconto do 2º óculos (-40%) e frete são sempre os que o servidor devolve (/api/cotar);
+ * preço, desconto da loja (30% em todos os óculos; cupom de 1ª compra no lugar) e frete são sempre os que o servidor devolve (/api/cotar);
  * o pagamento é criado pelo /api/checkout e acompanhado pelo /api/pedido/:id.
  * O navegador nunca manda preço: só sku e quantidade.
  */
@@ -156,7 +156,7 @@
     catalogo: null,        // resposta do /api/catalogo
     porCodigo: {},         // codigo (maiúsculo) -> produto
     porSku: {},            // sku (maiúsculo) -> { produto, variacao }
-    regras: { leve2_pct: 40, max_unidades: 20 },
+    regras: { desconto_pct: 30, leve2_pct: 0, max_unidades: 20 },
     precoMinimo: null,
     carrinho: ler('sa_cart_v2', []),
     cep: ler('sa_cep', ''),
@@ -173,6 +173,10 @@
     var cupomUrl = new URLSearchParams(location.search).get('cupom');
     if (cupomUrl && /^[A-Za-z0-9]{3,40}$/.test(cupomUrl)) { estado.cupom = cupomUrl.toUpperCase(); gravar('sa_cupom', estado.cupom); }
   } catch (e) { /* navegador antigo */ }
+  // Cupons que acabaram: quem tinha guardado, ou chega por link velho, segue sem ele.
+  var CUPONS_ENCERRADOS = [];
+  if (CUPONS_ENCERRADOS.indexOf(estado.cupom) >= 0) { estado.cupom = ''; gravar('sa_cupom', ''); }
+  try { localStorage.removeItem('sa_catalogo'); } catch (e) { /* catálogo da versão anterior (preço sem o desconto da loja) */ }
   // Enter no campo do cupom aplica o cupom (no checkout ele fica dentro do formulário de pagamento).
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Enter' || !e.target || e.target.id !== 'cupom') return;
@@ -210,7 +214,7 @@
   function carregarCatalogo(forcar) {
     // O catálogo fica guardado no navegador: quem volta à loja vê tudo na hora e a
     // versão nova chega em segundo plano (preço e estoque são reconferidos no checkout).
-    var cache = ler('sa_catalogo', null);
+    var cache = ler('sa_catalogo_v2', null);
     if (!forcar && cache && cache.ts && Date.now() - cache.ts < CONFIG.validadeCatalogoMs && cache.dados) {
       indexar(cache.dados);
       return Promise.resolve(estado.catalogo);
@@ -222,7 +226,7 @@
       .then(function (r) { if (!r.ok) throw new Error('catalogo ' + r.status); return r.json(); }))
       .then(function (dados) {
         indexar(dados);
-        gravar('sa_catalogo', { ts: Date.now(), dados: dados });
+        gravar('sa_catalogo_v2', { ts: Date.now(), dados: dados });
         return dados;
       });
   }
@@ -240,7 +244,7 @@
     }
     return null;
   }
-  function precoSegunda(preco) { return preco * (1 - (estado.regras.leve2_pct || 0) / 100); }
+  function pctDesconto() { return Number(estado.regras.desconto_pct) || 0; }
   // O cadastro do Bling ainda traz "garantia de 1 ano e troca em até 30 dias" nas descrições;
   // a loja não promete garantia e a troca grátis é de 7 dias úteis. Limpa na exibição.
   // A descrição vem do catálogo com HTML (<p>, <br>, &amp;…): aqui vira texto puro.
@@ -383,7 +387,8 @@
   // Aqui só o aviso: aparece uma vez, no 2º modelo aberto (sinal de interesse),
   // e some pra sempre depois que o navegador fecha uma compra.
   // Pop-up do cupom de 1ª compra: abre uma vez, no 1º acesso (marca no navegador: sa_popup_cupom).
-  var POPUP_1A = { desktop: '/popup-cupom-desktop.webp', mobile: '/popup-cupom-mobile.webp', cupom: 'PRIMEIRACOMPRA', pct: 40, esperaMs: 4000 };
+  // ativo: false desliga o pop-up (o cupom continua valendo se digitado).
+  var POPUP_1A = { ativo: true, desktop: '/popup-cupom-desktop.webp', mobile: '/popup-cupom-mobile.webp', cupom: 'PRIMEIRACOMPRA', pct: 40, esperaMs: 4000 };
   function pct1a() { return Number(estado.regras.primeira_compra_pct) || 0; }
   function jaComprou() { return !!ler('sa_ja_comprou', false); }
   function oferta1aAtiva() { return pct1a() > 0 && !jaComprou(); }
@@ -394,7 +399,7 @@
   }
   // 1º acesso: quem nunca viu o pop-up, não comprou e não está com cupom. Fora do carrinho/pagamento/conta.
   function agendarPopup1a(nav) {
-    if (ler('sa_popup_cupom', null) || jaComprou() || estado.cupom) return;
+    if (!POPUP_1A.ativo || ler('sa_popup_cupom', null) || jaComprou() || estado.cupom) return;
     if (/^(carrinho|checkout|pix|conta)$/.test(nav || '') || /^\/(checkout|pix|carrinho|conta|admin)/.test(location.pathname)) return;
     new Image().src = imagemPopup1a();   // baixa a arte antes de abrir
     estado.timers.push(setTimeout(abrirPopup1a, POPUP_1A.esperaMs));
@@ -428,14 +433,17 @@
   // do CPF. O valor vem do servidor (resumo.previa_primeira), igual ao que será
   // cobrado depois de confirmado. `d` é a resposta inteira do /api/cotar.
   // Campo de cupom (carrinho e checkout). `d` é a resposta do /api/cotar.
+  var CAMPO_CUPOM = true;
   function cupomHtml(d) {
     var cu = d && d.cupom;
     if (estado.cupom) {
-      var ok = cu && (cu.status === 'aplicado' || cu.status === 'pendente');
+      var ok = cu && (cu.status === 'aplicado' || cu.status === 'pendente' || cu.status === 'dispensado');
       return '<div class="cupom ' + (ok ? 'ok' : 'erro') + '"><div class="cupom-linha"><span>' + (ok ? '✓ ' : '') + 'Cupom <b>' + h(estado.cupom) + '</b></span>' +
         '<button type="button" class="link" data-action="remover-cupom">remover</button></div>' +
         (cu && cu.mensagem ? '<small>' + h(cu.mensagem) + '</small>' : '') + '</div>';
     }
+    // CAMPO_CUPOM = false esconde o campo (quando não houver cupom ativo na loja).
+    if (!CAMPO_CUPOM) return '';
     return '<details class="cupom"><summary>Tem cupom de desconto?</summary><div class="cupom-linha">' +
       '<input id="cupom" name="cupom_codigo" autocomplete="off" autocapitalize="characters" placeholder="Código do cupom" maxlength="40">' +
       '<button type="button" class="btn btn-verde" data-action="aplicar-cupom">Aplicar</button></div></details>';
@@ -462,7 +470,7 @@
     if (r && r.desconto_primeira > 0) return '<div class="bolha-1a ok" role="status">✓ Desconto de 1ª compra ativado: -' + h(fmt(r.desconto_primeira)) + '</div>';
     // Já comprou (por CPF, e-mail ou WhatsApp): boas-vindas de volta, sem cara de recusa.
     if (pc.verificado && pc.ja_comprou) return '<div class="bolha-1a volta" role="status">💚 Que bom te ver de novo! Você já comprou com a gente, então o desconto de 1ª compra já foi usado' +
-      (estado.regras.leve2_pct ? ' — mas a 2ª armação continua saindo com -' + estado.regras.leve2_pct + '%.' : '.') + '</div>';
+      (pctDesconto() ? ' — mas os ' + pctDesconto() + '% OFF da loja continuam valendo.' : '.') + '</div>';
     if (pc.verificado && pc.elegivel === false) return '';
     return '<div class="bolha-1a" role="status"><span class="bolha-tag">-' + pct1a() + '%</span> Preencha seu CPF para ativar o desconto de 1ª compra</div>';
   }
@@ -543,7 +551,7 @@
   }
   // renova o catálogo em silêncio se estiver velho
   function renovarSeVelho() {
-    var cache = ler('sa_catalogo', null);
+    var cache = ler('sa_catalogo_v2', null);
     if (cache && Date.now() - cache.ts > CONFIG.cacheCatalogoMs) carregarCatalogo(true).catch(function () {});
   }
 
@@ -570,8 +578,7 @@
         '<span class="card-linha">' + h(p.formato || 'Armação') + (tipo ? ' · ' + h(tipo) : '') + '</span>' +
         '<span class="card-nome">' + h(p.nome) + '</span>' +
         (cores > 1 ? '<span class="card-cores">' + cores + ' cores</span>' : '') +
-        '<span class="card-preco"><span class="valor">' + h(fmt(preco)) + '</span><span class="no-pix">no Pix</span></span>' +
-        '<span class="card-segunda">a 2ª sai por ' + h(fmt(precoSegunda(preco))) + '</span>' +
+        '<span class="card-preco">' + riscado((p.variacoes || []).filter(function (x) { return x.preco === preco; })[0], true) + '<span class="valor">' + h(fmt(preco)) + '</span><span class="no-pix">no Pix</span></span>' +
       '</div></a>';
   }
 
@@ -598,8 +605,7 @@
         '<span class="card-nome">' + h(p.nome) + '</span>' +
         notaCardHtml(p) +
         (v.cor ? '<span class="card-cores">' + h(v.cor) + '</span>' : '') +
-        '<span class="card-preco">' + riscado(v) + '<span class="valor">' + h(fmt(v.preco)) + '</span><span class="no-pix">no Pix</span></span>' +
-        '<span class="card-segunda">a 2ª sai por ' + h(fmt(precoSegunda(v.preco))) + '</span>' +
+        '<span class="card-preco">' + riscado(v, true) + '<span class="valor">' + h(fmt(v.preco)) + '</span><span class="no-pix">no Pix</span></span>' +
       '</div></a>';
   }
 
@@ -823,13 +829,13 @@
     titulo('');
     var q = query();
     var grade = gradeProdutos(q);
-    var l2 = estado.regras.leve2_pct;
+    var d40 = pctDesconto();
     app.innerHTML =
       '<section class="hero"><div class="container">' +
         '<div class="hero-texto">' +
           '<h1 class="display"><span>Chega de</span><span>pagar caro.</span></h1>' +
           '<div class="etiqueta"><small>A partir de</small><strong>' + h(fmt(estado.precoMinimo || 49)).replace(',', '<sup>,') + '</sup></strong></div>' +
-          '<ul><li>Pix aprovado na hora</li><li>Troca grátis em até 7 dias úteis</li><li>A 2ª sai com -' + l2 + '%</li></ul>' +
+          '<ul><li>Pix aprovado na hora</li><li>Troca grátis em até 7 dias úteis</li><li>' + d40 + '% OFF em todos os óculos</li></ul>' +
           '<a class="btn btn-laranja" href="/modelos" data-link>Só vem →</a>' +
           '<p class="tagline">Ninguém faz melhor por menos.</p>' +
         '</div>' +
@@ -845,16 +851,16 @@
         blocoFiltros(q, grade.total) + '<div id="grade">' + grade.html + '</div>' +
       '</div></section>' + secaoLentes() +
       '<section class="leve2"><div class="container">' +
-        '<h2 class="display">A 2ª armação sai com <em>-' + l2 + '%.</em></h2>' +
-        '<p>Levando 2 no mesmo pedido, a 2ª sai com ' + l2 + '% de desconto — é o único desconto da loja, e aparece sozinho no carrinho. O frete é um só pro pedido inteiro. Uma pro trampo, uma pro rolê.</p>' +
+        '<h2 class="display">Todos os óculos com <em>' + d40 + '% OFF.</em></h2>' +
+        '<p>Leve 1, leve 2, leve 5: todo óculos sai com ' + d40 + '% de desconto. O preço que você vê já é o com desconto. Na sua 1ª compra, o cupom <b>PRIMEIRACOMPRA</b> troca os ' + d40 + '% por 40%. O frete é um só pro pedido inteiro.</p>' +
         '<a class="btn btn-laranja" href="/modelos" data-link style="justify-self:start">Escolher modelos</a>' +
-        '<div class="passos"><div class="passo"><strong>1ª</strong><span>preço cheio</span></div><div class="passo"><strong>-' + l2 + '%</strong><span>na 2ª armação</span></div><div class="passo"><strong>1</strong><span>frete pro pedido inteiro</span></div></div>' +
+        '<div class="passos"><div class="passo"><strong>-' + d40 + '%</strong><span>em todos os óculos</span></div><div class="passo"><strong>-40%</strong><span>na 1ª compra, com cupom</span></div><div class="passo"><strong>1</strong><span>frete pro pedido inteiro</span></div></div>' +
       '</div></section>' +
       '<section class="secao"><div class="container">' +
         '<div class="secao-titulo"><h2 class="display">Como funciona</h2></div>' +
         '<div class="passos-compra">' +
           passo(1, 'Escolha a armação', 'Filtre por formato e cor. Todas as medidas estão na página do modelo.') +
-          passo(2, 'Adicione ao carrinho', 'Levando 2, a 2ª sai com -' + l2 + '%. O frete é calculado pelo seu CEP.') +
+          passo(2, 'Adicione ao carrinho', 'O preço já vem com ' + d40 + '% OFF, em qualquer quantidade. O frete é calculado pelo seu CEP.') +
           passo(3, 'Pague no Pix ou cartão', 'No Pix a confirmação é automática, em segundos. No cartão, dá pra parcelar.') +
           passo(4, 'Receba e leve à ótica', 'Chega com rastreio e nota fiscal. Aí é só levar à sua ótica, com a receita, para colocar as lentes de grau.') +
         '</div>' +
@@ -894,8 +900,7 @@
   }
   function passo(n, t, d) { return '<div class="passo-compra"><div class="n">' + n + '</div><h3>' + h(t) + '</h3><p>' + h(d) + '</p></div>'; }
   function faq() {
-    var l2 = estado.regras.leve2_pct;
-    var itens = window.SA_CONTEUDO.faq(l2);
+    var itens = window.SA_CONTEUDO.faq(pctDesconto());
     return itens.map(function (i) { return '<details><summary>' + h(i[0]) + '</summary><p>' + h(i[1]) + '</p></details>'; }).join('');
   }
 
@@ -975,7 +980,7 @@
         '<div class="produto-info">' +
           '<div><span class="card-linha">' + h(p.formato || 'Armação') + (rotuloTipo(p, v) ? ' · ' + h(rotuloTipo(p, v)) : '') + (p.marca ? ' · ' + h(p.marca) : '') + '</span><h1 class="display">' + h(p.nome) + '</h1></div>' +
           '<div class="preco-bloco">' + riscado(v, true) + '<span class="valor">' + h(fmt(v.preco)) + '<small>no Pix</small></span>' +
-            '<span class="segunda">Levando 2, a 2ª sai por ' + h(fmt(precoSegunda(v.preco))) + '</span>' +
+            (pctDesconto() ? '<span class="segunda">' + pctDesconto() + '% OFF em todos os óculos, em qualquer quantidade</span>' : '') +
             '<span class="parcelas">ou no cartão em até 6x</span></div>' +
           (variacoes.length > 1 ? '<div class="cores"><span class="rotulo">Cor: ' + h(v.cor) + '</span><div class="opcoes">' + variacoes.map(function (x) {
               return '<a class="cor-opcao' + (x.sku === v.sku ? ' ativo' : '') + (x.estoque > 0 ? '' : ' esgotado') + '" href="' + h(x.url) + '" data-link title="' + h(x.cor) + '">' + (x.imagem ? '<img src="' + h(foto(x.imagem)) + '" alt="">' : '') + '<span>' + h(x.cor) + (x.tipo === 'sol' ? ' <small>(sol)</small>' : '') + '</span></a>';
@@ -1224,17 +1229,18 @@
     if (slide) { slide.classList.remove('zoom'); var im = slide.querySelector('img'); if (im) im.style.transformOrigin = ''; }
   }
 
-  function progressoLeve(unidades) {
-    var l2 = estado.regras.leve2_pct, msg, pct, pares = Math.floor(unidades / 2);
-    if (unidades <= 1) { msg = 'Falta 1 pro desconto: a 2ª armação sai com -' + l2 + '%'; pct = 50; }
-    else if (unidades % 2 === 0) { msg = 'Desconto ativado: ' + (pares === 1 ? 'a 2ª armação sai' : pares + ' armações saem') + ' com -' + l2 + '%'; pct = 100; }
-    else { msg = 'Desconto ativado em ' + pares + (pares === 1 ? ' armação' : ' armações') + ' — mais 1 e a próxima também sai com -' + l2 + '%'; pct = 100; }
-    return '<div class="progresso"><span class="msg">' + h(msg) + '</span><div class="barra"><i style="width:' + pct + '%"></i></div></div>';
+  function progressoLeve(r) {
+    if (r && r.cupom) return '<div class="progresso"><span class="msg">✓ Cupom ' + h(r.cupom) + ': ' + h(r.desconto_primeira_pct) + '% OFF no lugar dos ' + pctDesconto() + '% da loja</span><div class="barra"><i style="width:100%"></i></div></div>';
+    if (!pctDesconto()) return '';
+    return '<div class="progresso"><span class="msg">✓ ' + pctDesconto() + '% OFF aplicado em todos os óculos do carrinho</span><div class="barra"><i style="width:100%"></i></div></div>';
   }
   function resumoHtml(r, comCta) {
     if (!r) return '';
-    return '<div class="resumo-linha"><span>Subtotal (' + r.unidades + ' ' + (r.unidades === 1 ? 'armação' : 'armações') + ')</span><span>' + h(fmt(r.subtotal)) + '</span></div>' +
-      (r.desconto > 0 ? '<div class="resumo-linha desconto"><span>2ª armação com -' + (r.desconto_pct || estado.regras.leve2_pct) + '%' + (r.unidades_com_desconto > 1 ? ' (×' + r.unidades_com_desconto + ')' : '') + '</span><span>-' + h(fmt(r.desconto)) + '</span></div>' : '') +
+    // Os itens já aparecem com o preço pago (o da vitrine): o subtotal é a soma deles
+    // e o desconto da loja vira só a linha de economia, sem subtrair de novo.
+    var subtotalPago = Math.round((r.subtotal - (r.desconto || 0)) * 100) / 100;
+    return '<div class="resumo-linha"><span>Subtotal (' + r.unidades + ' ' + (r.unidades === 1 ? 'armação' : 'armações') + ')</span><span>' + h(fmt(subtotalPago)) + '</span></div>' +
+      (r.desconto > 0 ? '<div class="resumo-linha desconto"><span>Você economiza ' + (r.desconto_pct || pctDesconto()) + '% (já no preço)</span><span>' + h(fmt(r.desconto)) + '</span></div>' : '') +
       (r.desconto_primeira > 0 ? '<div class="resumo-linha desconto"><span>' + (r.cupom ? 'Cupom ' + h(r.cupom) : '1ª compra') + ' -' + r.desconto_primeira_pct + '%</span><span>-' + h(fmt(r.desconto_primeira)) + '</span></div>' : '') +
       '<div class="resumo-linha"><span>Frete' + (r.frete_titulo ? ' · ' + h(r.frete_titulo) : '') + (r.frete_prazo ? ' <small>(' + h(r.frete_prazo) + ')</small>' : '') + '</span><span>' + (r.frete == null ? 'informe o CEP' : (r.frete === 0 ? 'grátis' : h(fmt(r.frete)))) + '</span></div>' +
       '<div class="resumo-linha total"><span>Total</span><span class="num">' + h(fmt(r.total)) + '</span></div>';
@@ -1259,20 +1265,20 @@
     carrinhoDoLink();
     titulo('Carrinho');
     if (!estado.carrinho.length) {
-      app.innerHTML = '<div class="container confirmacao"><h1 class="display">Seu carrinho está vazio.</h1><p>Escolha uma armação — e lembra: a 2ª sai com -' + estado.regras.leve2_pct + '%.</p><a class="btn btn-laranja" href="/modelos" data-link>Ver modelos</a></div>';
+      app.innerHTML = '<div class="container confirmacao"><h1 class="display">Seu carrinho está vazio.</h1><p>Escolha uma armação: todos os óculos estão com ' + pctDesconto() + '% OFF.</p><a class="btn btn-laranja" href="/modelos" data-link>Ver modelos</a></div>';
       return;
     }
     function render(resumo, erro, carregando) {
       var itens = resumo ? resumo.itens : estado.carrinho.map(function (i) { return { sku: i.sku, nome: i.nome + (i.cor ? ' — ' + i.cor : ''), qty: i.qty, preco: i.preco, total: i.preco * i.qty, imagem: i.imagem }; });
       var unidades = resumo ? resumo.unidades : unidadesCarrinho();
       app.innerHTML = '<div class="container"><div class="secao-titulo" style="margin-top:20px"><h1 class="display" style="font-size:clamp(30px,6vw,48px)">Carrinho</h1><a class="link" href="/modelos" data-link>Continuar comprando</a></div>' +
-        '<div class="carrinho"><div>' + progressoLeve(unidades) + '<div class="itens" style="margin-top:10px">' +
+        '<div class="carrinho"><div>' + progressoLeve(resumo && resumo.resumo) + '<div class="itens" style="margin-top:10px">' +
           itens.map(function (it) {
             var local = estado.carrinho.find(function (c) { return c.sku === it.sku; }) || {};
             var img = foto(it.imagem || local.imagem);
             return '<div class="item">' + (img ? '<img src="' + h(img) + '" alt="">' : '<div></div>') + '<div>' +
-              '<div class="nome">' + h(it.nome) + '</div><div class="unit">' + h(fmt(it.preco)) + ' cada · <button class="link" data-action="remover" data-sku="' + h(it.sku) + '">remover</button></div>' +
-              '<div class="linha"><div class="qtd"><button data-action="qtd" data-sku="' + h(it.sku) + '" data-delta="-1" aria-label="Menos">−</button><span>' + it.qty + '</span><button data-action="qtd" data-sku="' + h(it.sku) + '" data-delta="1" aria-label="Mais">+</button></div><span class="total">' + h(fmt(it.total)) + '</span></div>' +
+              '<div class="nome">' + h(it.nome) + '</div><div class="unit">' + (it.preco_final != null && it.preco_final < it.preco ? '<s>' + h(fmt(it.preco)) + '</s> ' + h(fmt(it.preco_final)) : h(fmt(it.preco))) + ' cada · <button class="link" data-action="remover" data-sku="' + h(it.sku) + '">remover</button></div>' +
+              '<div class="linha"><div class="qtd"><button data-action="qtd" data-sku="' + h(it.sku) + '" data-delta="-1" aria-label="Menos">−</button><span>' + it.qty + '</span><button data-action="qtd" data-sku="' + h(it.sku) + '" data-delta="1" aria-label="Mais">+</button></div><span class="total">' + h(fmt(it.total_final != null ? it.total_final : it.total)) + '</span></div>' +
               '</div></div>';
           }).join('') + '</div>' +
           (erro ? '<div class="aviso erro" style="margin-top:10px">' + h(erro) + '</div>' : '') +
@@ -1379,7 +1385,7 @@
             '<p class="ajuda" style="font-size:12px;color:var(--texto-suave)">Ao pagar, você concorda com os <a href="/termos" data-link>termos de uso</a> e a <a href="/privacidade" data-link>política de privacidade</a>.</p>' +
           '</div>' +
           '<div class="painel sticky"><h2 class="display">Seu pedido</h2>' +
-            (r ? '<div class="mini-itens">' + r.itens.map(function (i) { var local = estado.carrinho.find(function (c) { return c.sku === i.sku; }) || {}; return '<div class="mini-item">' + ((i.imagem || local.imagem) ? '<img src="' + h(foto(i.imagem || local.imagem)) + '" alt="">' : '<div></div>') + '<span>' + i.qty + 'x ' + h(i.nome) + '</span><strong>' + h(fmt(i.total)) + '</strong></div>'; }).join('') + '</div>' + seletorFreteHtml(r) + resumoHtml(r) + cupomHtml(resumo) + nota1aHtml(resumo, true) : '<p class="endereco-resolvido"><span class="spinner"></span> Calculando o pedido…</p>') +
+            (r ? '<div class="mini-itens">' + r.itens.map(function (i) { var local = estado.carrinho.find(function (c) { return c.sku === i.sku; }) || {}; return '<div class="mini-item">' + ((i.imagem || local.imagem) ? '<img src="' + h(foto(i.imagem || local.imagem)) + '" alt="">' : '<div></div>') + '<span>' + i.qty + 'x ' + h(i.nome) + '</span><strong>' + h(fmt(i.total_final != null ? i.total_final : i.total)) + '</strong></div>'; }).join('') + '</div>' + seletorFreteHtml(r) + resumoHtml(r) + cupomHtml(resumo) + nota1aHtml(resumo, true) : '<p class="endereco-resolvido"><span class="spinner"></span> Calculando o pedido…</p>') +
           '</div>' +
         '</form></div>';
       if (foco) {
@@ -1998,7 +2004,7 @@
           '<div class="painel conta-bloco"><div class="conta-linha"><strong>Status do pedido</strong>' + pilulaStatus(p) + '</div>' + barraStatusHtml(p) + '</div>' +
           '<div class="painel conta-bloco"><strong>Itens</strong>' + p.itens.map(function (i) { return itemPedidoHtml(p, i, true); }).join('') +
             '<div class="conta-totais">' + linha('Subtotal', h(fmt(p.subtotal))) +
-              (p.desconto > 0 ? linha('2ª armação -' + h(p.desconto_pct) + '%', '-' + h(fmt(p.desconto)), 'verde') : '') +
+              (p.desconto > 0 ? linha('Desconto -' + h(p.desconto_pct) + '%', '-' + h(fmt(p.desconto)), 'verde') : '') +
               (p.desconto_primeira > 0 ? linha('1ª compra -' + h(p.desconto_primeira_pct) + '%', '-' + h(fmt(p.desconto_primeira)), 'verde') : '') +
               linha('Frete' + (p.frete_prazo ? ' <small>(' + h(p.frete_prazo) + ')</small>' : ''), p.frete ? h(fmt(p.frete)) : 'grátis') +
               linha('<strong>Total</strong>', '<strong>' + h(fmt(p.total)) + '</strong>') + '</div>' +
@@ -2416,7 +2422,7 @@
       track('vitrine_pagina', { pagina: Number(el.dataset.pagina) });
     }
     else if (acao === 'limpar-filtros') { history.replaceState({}, '', location.pathname); atualizarGrade(); }
-    else if (acao === 'recarregar') { apagar('sa_catalogo'); estado.catalogo = null; rotear(); }
+    else if (acao === 'recarregar') { apagar('sa_catalogo_v2'); estado.catalogo = null; rotear(); }
     else if (acao === 'foto') { galeriaIr(Number(el.dataset.i)); }
     else if (acao === 'galeria') { galeriaIr(galeriaIndice() + Number(el.dataset.dir)); }
     else if (acao === 'lupa') { lupaAbrir(galeriaIndice()); }

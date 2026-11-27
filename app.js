@@ -496,6 +496,9 @@
     { re: /^\/pix\/?$/, view: viewPix, nav: 'carrinho' },
     { re: /^\/confirmacao\/?$/, view: viewConfirmacao, nav: 'carrinho' },
     { re: /^\/ajuda\/?$/, view: viewAjuda, nav: 'ajuda' },
+    { re: /^\/armacoes\/([a-z0-9-]+)\/?$/, view: viewCategoria, nav: 'modelos' },
+    { re: /^\/guia\/?$/, view: viewGuias, nav: 'ajuda' },
+    { re: /^\/guia\/([a-z0-9-]+)\/?$/, view: viewGuia, nav: 'ajuda' },
     { re: /^\/garantia\/?$/, view: function () { navegar('/trocas-e-devolucoes', true); }, nav: 'ajuda' },
     { re: /^\/avaliar\/([A-Za-z0-9_-]{20,64})\/?$/, view: viewAvaliar, nav: 'modelos', semCatalogo: true },
     { re: /^\/entrar\/?$/, view: viewEntrar, nav: 'conta' },
@@ -963,6 +966,7 @@
     jsonLd({ '@context': 'https://schema.org', '@type': 'Product', name: p.nome, sku: v.sku, brand: { '@type': 'Brand', name: p.marca || 'Só Armação' }, description: desc, image: imagens, color: v.cor,
       offers: { '@type': 'Offer', url: CONFIG.site + (v.url || p.url), priceCurrency: 'BRL', price: v.preco, availability: esgotado ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock', itemCondition: 'https://schema.org/NewCondition' } });
     var med = p.medidas || {};
+    var ficha = SA.fichaModelo(p, v);
     var relacionados = (estado.catalogo.produtos || []).filter(function (x) { return x.codigo !== p.codigo && x.formato === p.formato && x.estoque_total > 0; }).slice(0, 4);
     app.innerHTML = '<div class="container">' +
       '<nav class="migalhas" aria-label="Você está em"><a href="/" data-link>Início</a> › <a href="/modelos" data-link>Modelos</a> › ' + (p.formato ? '<a href="/modelos?formato=' + h(slug(p.formato)) + '" data-link>' + h(p.formato) + '</a> › ' : '') + '<span>' + h(p.nome) + '</span></nav>' +
@@ -996,8 +1000,10 @@
             '<tr><th>Código</th><td>' + h(v.sku) + '</td></tr>' +
           '</tbody></table></div>' +
           (desc ? '<div><div class="bloco-titulo">Sobre o modelo</div><p class="descricao">' + h(desc) + '</p></div>' : '') +
+          SA.fichaHtml(ficha) +
         '</div>' +
       '</div>' +
+      SA.faqModeloHtml(ficha) +
       '<section class="secao" id="avaliacoes" aria-live="polite"></section>' +
       (relacionados.length ? '<section class="secao"><div class="secao-titulo"><h2 class="display">Combina com</h2></div><div class="grade">' + relacionados.map(cardProduto).join('') + '</div></section>' : '') +
       '</div>' +
@@ -2347,11 +2353,34 @@
   // ---------------------------------------------------------------------------
   // Institucional
   // ---------------------------------------------------------------------------
-  var PAGINAS = window.SA_CONTEUDO.paginas;
+  var SA = window.SA_CONTEUDO;
+  var PAGINAS = SA.paginas;
+  // Páginas de categoria (/armacoes/...) e guias (/guia/...): textos em conteudo.js.
+  function viewCategoria(m) {
+    var cat = SA.categorias[m[1]];
+    if (!cat) { naoIndexar(true); titulo('Página não encontrada'); app.innerHTML = '<div class="container institucional"><h1 class="display">Essa página não existe.</h1><p><a href="/modelos" data-link>Ver todos os modelos →</a></p></div>'; return; }
+    var produtos = (estado.catalogo.produtos || []).filter(function (p) { return SA.naCategoria(cat, p); });
+    var min = produtos.reduce(function (a, p) { return a == null || p.preco < a ? p.preco : a; }, null);
+    titulo(cat.t, cat.d);
+    app.innerHTML = '<div class="container"><div class="institucional categoria"><nav class="migalhas" aria-label="Você está em"><a href="/" data-link>Início</a> › <a href="/modelos" data-link>Modelos</a> › <span>' + h(cat.t) + '</span></nav>' +
+      '<h1 class="display">' + h(cat.t) + '</h1>' + SA.categoriaTopoHtml(cat, produtos.length, min, fmt) + '</div>' +
+      '<div class="grade">' + produtos.map(cardProduto).join('') + '</div>' +
+      '<p class="categoria-outras">Veja também: ' + Object.keys(SA.categorias).filter(function (k) { return k !== m[1]; }).map(function (k) { return '<a href="/armacoes/' + k + '" data-link>' + h(SA.categorias[k].t.replace('Armação de óculos ', '')) + '</a>'; }).join(' · ') + '</p></div>';
+  }
+  function viewGuias() {
+    titulo('Guias', 'Guias da Só Armação para escolher a armação certa: tamanho, formato de rosto, material e quanto custa o óculos de grau.');
+    app.innerHTML = SA.guiasIndiceHtml();
+  }
+  function viewGuia(m) {
+    var g = SA.guias[m[1]];
+    if (!g) { naoIndexar(true); titulo('Página não encontrada'); app.innerHTML = '<div class="container institucional"><h1 class="display">Essa página não existe.</h1><p><a href="/guia" data-link>Ver os guias →</a></p></div>'; return; }
+    titulo(g.t, g.d);
+    app.innerHTML = SA.guiaHtml(m[1], g, fmt(estado.precoMinimo || 49));
+  }
   function viewAjuda() {
     titulo('Ajuda', 'Central de ajuda da Só Armação: como comprar, entrega, pagamento, trocas e devoluções.');
     app.innerHTML = '<div class="container institucional"><h1 class="display">Ajuda</h1><p>Tudo o que você precisa saber antes e depois de comprar.</p><div class="ajuda-links">' +
-      Object.keys(PAGINAS).map(function (k) { return '<a href="/' + k + '" data-link>' + h(PAGINAS[k].t) + '</a>'; }).join('') + '</div><h2>Perguntas frequentes</h2><div class="faq">' + faq() + '</div></div>';
+      Object.keys(PAGINAS).map(function (k) { return '<a href="/' + k + '" data-link>' + h(PAGINAS[k].t) + '</a>'; }).join('') + '<a href="/guia" data-link>Guias para escolher a armação</a></div><h2>Perguntas frequentes</h2><div class="faq">' + faq() + '</div></div>';
   }
   function viewInstitucional(m) {
     var pg = PAGINAS[m[1]];

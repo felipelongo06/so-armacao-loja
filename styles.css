@@ -786,3 +786,16 @@ body[data-tela="pagamento"] .wa-botao, body[data-tela="pagamento"] .wa-painel { 
 #app[data-ssr] .ssr-lista { list-style: none; padding: 0; margin: 16px 0 32px; display: grid; gap: 8px; }
 #app[data-ssr] .ssr-lista span { color: #555; font-size: .9em; }
 #app[data-ssr] .cores ul { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 16px; }
+
+/* Fase 3: ficha, categorias e guias */
+.faq-modelo { max-width: 760px; }
+.categoria { max-width: 760px; padding-bottom: 20px; }
+.cat-resumo { font-size: 17px; }
+.categoria-outras { margin: 28px 0 40px; font-size: 15px; line-height: 1.8; }
+.guia-resumo { font-size: 17px; background: var(--creme-2); padding: 14px 16px; border-radius: 10px; }
+.tabela-rolagem { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.guia-tabela th { width: auto; }
+.guia-tabela thead th { border-bottom: 2px solid var(--creme-2); }
+.guias-lista li { margin-bottom: 12px; }
+.institucional ol { padding-left: 22px; }
+.categoria p { margin: 0 0 12px; }

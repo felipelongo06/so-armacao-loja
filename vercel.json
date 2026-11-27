@@ -56,6 +56,30 @@
       "destination": "/api/pagina?r=ajuda"
     },
     {
+      "source": "/armacoes/:slug",
+      "destination": "/api/pagina?r=categoria&slug=:slug"
+    },
+    {
+      "source": "/armacoes/:slug/",
+      "destination": "/api/pagina?r=categoria&slug=:slug"
+    },
+    {
+      "source": "/guia",
+      "destination": "/api/pagina?r=guias"
+    },
+    {
+      "source": "/guia/",
+      "destination": "/api/pagina?r=guias"
+    },
+    {
+      "source": "/guia/:slug",
+      "destination": "/api/pagina?r=guia&slug=:slug"
+    },
+    {
+      "source": "/guia/:slug/",
+      "destination": "/api/pagina?r=guia&slug=:slug"
+    },
+    {
       "source": "/:pagina(quem-somos|como-comprar|entrega|pagamento|trocas-e-devolucoes|privacidade|termos|contato)",
       "destination": "/api/pagina?r=institucional&pagina=:pagina"
     },

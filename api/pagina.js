@@ -25,6 +25,39 @@ const RE_FOTO_CDN = /^(.*\/so-armacao-fotos@[^/]+\/[^/]+?)\.(jpe?g|png|webp)$/i;
 const TIPOS = { grau: 'De grau', sol: 'De sol', 'grau-e-sol': 'Grau ou sol' };
 const C = globalThis.SA_CONTEUDO;
 
+// Troca e envio em dados estruturados: as mesmas regras das páginas Trocas e
+// devoluções e Entrega (7 dias de arrependimento, devolução grátis, reembolso
+// integral; até 3 dias úteis na Grande SP e até 5 no resto do Brasil).
+// O valor do frete depende do CEP (Melhor Envio), por isso não vai aqui.
+const POLITICA_TROCA = {
+  '@type': 'MerchantReturnPolicy',
+  applicableCountry: 'BR',
+  returnPolicyCountry: 'BR',
+  returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
+  merchantReturnDays: 7,
+  returnMethod: 'https://schema.org/ReturnByMail',
+  returnFees: 'https://schema.org/FreeReturn',
+  refundType: 'https://schema.org/FullRefund',
+  merchantReturnLink: `${SITE}/trocas-e-devolucoes`,
+};
+const ENVIO = {
+  '@type': 'OfferShippingDetails',
+  shippingDestination: { '@type': 'DefinedRegion', addressCountry: 'BR' },
+  deliveryTime: {
+    '@type': 'ShippingDeliveryTime',
+    handlingTime: { '@type': 'QuantitativeValue', minValue: 0, maxValue: 1, unitCode: 'DAY' },
+    transitTime: { '@type': 'QuantitativeValue', minValue: 1, maxValue: 4, unitCode: 'DAY' },
+  },
+};
+const ldLista = (produtos) => ({
+  '@context': 'https://schema.org', '@type': 'ItemList', numberOfItems: produtos.length,
+  itemListElement: produtos.map((p, i) => ({ '@type': 'ListItem', position: i + 1, url: SITE + urlProduto(p), name: p.nome })),
+});
+const ldFaq = (l2) => ({
+  '@context': 'https://schema.org', '@type': 'FAQPage',
+  mainEntity: C.faq(l2).map(([q, r]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: r } })),
+});
+
 let BASE = null;
 function base() {
   if (!BASE) BASE = readFileSync(join(process.cwd(), 'app.html'), 'utf8');
@@ -180,6 +213,7 @@ function paginaProduto(cat, codigo, cor) {
     name: `${p.nome}${x.cor ? ' ' + x.cor : ''}`,
     sku: x.sku,
     color: x.cor,
+    description: desc,
     image: [...new Set([x.imagem, ...(x.imagens || [])].filter(Boolean))].slice(0, 5).map(foto),
     offers: {
       '@type': 'Offer',
@@ -189,6 +223,8 @@ function paginaProduto(cat, codigo, cor) {
       availability: x.estoque > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
       itemCondition: 'https://schema.org/NewCondition',
       seller: { '@type': 'Organization', name: 'Só Armação' },
+      shippingDetails: ENVIO,
+      hasMerchantReturnPolicy: POLITICA_TROCA,
     },
   });
   const ld = [
@@ -236,7 +272,7 @@ function paginaHome(cat) {
     status: 200,
     titulo: `Só Armação — armações de grau a partir de ${fmt(min)}`,
     descricao: 'Armações para óculos de grau (vendidas sem lentes) com preço baixo todo dia, nota fiscal e troca grátis em até 7 dias úteis. Pix aprovado na hora ou cartão. Ninguém faz melhor por menos.',
-    caminho: '/', corpo,
+    caminho: '/', ld: [ldLista(produtos), ldFaq(l2)], corpo,
   };
 }
 
@@ -250,7 +286,7 @@ function paginaModelos(cat, tipo) {
   return {
     status: 200, titulo: `${t} — Só Armação`,
     descricao: (tipo === 'sol' ? 'Óculos de sol da Só Armação' : tipo === 'grau' ? 'Armações de óculos de grau da Só Armação' : 'Todas as armações da Só Armação') + ': gatinho, redondo, retangular, quadrado e hexagonal. Preço baixo todo dia e troca grátis em até 7 dias úteis.',
-    caminho: '/modelos', ld: [{ '@context': 'https://schema.org', ...ldMigalhas([['Início', '/'], [t, '/modelos']]) }], corpo,
+    caminho: '/modelos', ld: [{ '@context': 'https://schema.org', ...ldMigalhas([['Início', '/'], [t, '/modelos']]) }, ldLista(produtos)], corpo,
   };
 }
 
@@ -260,7 +296,7 @@ function paginaAjuda(cat) {
     '<h1 class="display">Ajuda</h1><p>Tudo o que você precisa saber antes e depois de comprar.</p><ul class="ajuda-links">' +
     Object.entries(C.paginas).map(([k, pg]) => `<li><a href="/${k}" data-link>${h(pg.t)}</a></li>`).join('') +
     '</ul><h2>Perguntas frequentes</h2>' + faqHtml(l2) + '</div>';
-  return { status: 200, titulo: 'Ajuda — Só Armação', descricao: 'Central de ajuda da Só Armação: como comprar, entrega, pagamento, trocas e devoluções.', caminho: '/ajuda', corpo };
+  return { status: 200, titulo: 'Ajuda — Só Armação', descricao: 'Central de ajuda da Só Armação: como comprar, entrega, pagamento, trocas e devoluções.', caminho: '/ajuda', ld: [ldFaq(l2)], corpo };
 }
 
 function paginaInstitucional(chave) {

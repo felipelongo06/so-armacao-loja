@@ -108,7 +108,7 @@ const urlProduto = (p) => String(p.url || `/p/${encodeURIComponent(p.codigo)}/`)
 const variacoesOrdenadas = (p) => (p.variacoes || []).slice().sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
 const vende = (v) => v.estoque > 0 && v.preco > 0;
 // % de desconto da loja em todos os óculos (já incluído em `preco`; `preco_de` é o de tabela).
-const pctLoja = (cat) => Number(cat?.regras?.desconto_pct ?? 40) || 0;
+const pctLoja = (cat) => Number(cat?.regras?.desconto_pct ?? 30) || 0;
 function precoMinimo(cat) {
   let min = null;
   for (const p of cat.produtos || []) for (const v of p.variacoes || []) if (vende(v) && (min == null || v.preco < min)) min = v.preco;
@@ -380,7 +380,7 @@ function llmsTxt(cat) {
     `> Loja 100% online de armações para óculos de grau (vendidas sem lentes de grau) e óculos de sol, com sede em São Bernardo do Campo/SP e entrega para todo o Brasil. Preços a partir de ${fmt(precoMinimo(cat))}, nota fiscal em todo pedido, Pix aprovado na hora ou cartão em até 6x, e troca grátis em até 7 dias úteis.`,
     '',
     `- As armações de grau chegam sem lentes: o cliente leva à ótica da preferência dele, com a receita, para colocar as lentes. A loja não faz exame de vista nem vende lentes de grau.`,
-    `- Todos os óculos estão com ${l2}% de desconto, em qualquer quantidade. O preço listado já é o com desconto; não há cupom.`,
+    `- Todos os óculos estão com ${l2}% de desconto, em qualquer quantidade. O preço listado já é o com desconto. Na 1ª compra, o cupom PRIMEIRACOMPRA dá 40% sobre o preço de tabela, no lugar desse desconto (não soma).`,
     '- Entrega em até 3 dias úteis na Grande São Paulo e até 5 dias úteis no resto do Brasil, contados da confirmação do pagamento.',
     '- Cada página de modelo traz as medidas (largura da lente, ponte, haste, largura frontal), o peso, o material e as cores.',
     `- Contato: ${C.email}. Empresa: So Armacao Comercio de Armacoes Ltda, Avenida Armando Italo Setti, 520, sala 81, São Bernardo do Campo/SP.`,

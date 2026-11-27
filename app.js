@@ -1,6 +1,6 @@
 /* Só Armação — loja
  * Uma página só (SPA). O catálogo vem do backend (/api/catalogo, alimentado pelo Bling);
- * preço, desconto da loja (40% em todos os óculos) e frete são sempre os que o servidor devolve (/api/cotar);
+ * preço, desconto da loja (30% em todos os óculos; cupom de 1ª compra no lugar) e frete são sempre os que o servidor devolve (/api/cotar);
  * o pagamento é criado pelo /api/checkout e acompanhado pelo /api/pedido/:id.
  * O navegador nunca manda preço: só sku e quantidade.
  */
@@ -156,7 +156,7 @@
     catalogo: null,        // resposta do /api/catalogo
     porCodigo: {},         // codigo (maiúsculo) -> produto
     porSku: {},            // sku (maiúsculo) -> { produto, variacao }
-    regras: { desconto_pct: 40, leve2_pct: 0, max_unidades: 20 },
+    regras: { desconto_pct: 30, leve2_pct: 0, max_unidades: 20 },
     precoMinimo: null,
     carrinho: ler('sa_cart_v2', []),
     cep: ler('sa_cep', ''),
@@ -173,11 +173,10 @@
     var cupomUrl = new URLSearchParams(location.search).get('cupom');
     if (cupomUrl && /^[A-Za-z0-9]{3,40}$/.test(cupomUrl)) { estado.cupom = cupomUrl.toUpperCase(); gravar('sa_cupom', estado.cupom); }
   } catch (e) { /* navegador antigo */ }
-  // Cupons que acabaram (27/11/2026: a oferta de 40% já está no preço). Quem tinha
-  // guardado do pop-up antigo, ou chega por link velho, segue sem ele.
-  var CUPONS_ENCERRADOS = ['PRIMEIRACOMPRA'];
+  // Cupons que acabaram: quem tinha guardado, ou chega por link velho, segue sem ele.
+  var CUPONS_ENCERRADOS = [];
   if (CUPONS_ENCERRADOS.indexOf(estado.cupom) >= 0) { estado.cupom = ''; gravar('sa_cupom', ''); }
-  try { localStorage.removeItem('sa_catalogo'); } catch (e) { /* catálogo da versão anterior (preço sem os 40%) */ }
+  try { localStorage.removeItem('sa_catalogo'); } catch (e) { /* catálogo da versão anterior (preço sem o desconto da loja) */ }
   // Enter no campo do cupom aplica o cupom (no checkout ele fica dentro do formulário de pagamento).
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Enter' || !e.target || e.target.id !== 'cupom') return;
@@ -388,8 +387,8 @@
   // Aqui só o aviso: aparece uma vez, no 2º modelo aberto (sinal de interesse),
   // e some pra sempre depois que o navegador fecha uma compra.
   // Pop-up do cupom de 1ª compra: abre uma vez, no 1º acesso (marca no navegador: sa_popup_cupom).
-  // Desligado desde 27/11/2026 (ativo: false): o cupom saiu, a oferta de 40% já está no preço.
-  var POPUP_1A = { ativo: false, desktop: '/popup-cupom-desktop.webp', mobile: '/popup-cupom-mobile.webp', cupom: 'PRIMEIRACOMPRA', pct: 40, esperaMs: 4000 };
+  // ativo: false desliga o pop-up (o cupom continua valendo se digitado).
+  var POPUP_1A = { ativo: true, desktop: '/popup-cupom-desktop.webp', mobile: '/popup-cupom-mobile.webp', cupom: 'PRIMEIRACOMPRA', pct: 40, esperaMs: 4000 };
   function pct1a() { return Number(estado.regras.primeira_compra_pct) || 0; }
   function jaComprou() { return !!ler('sa_ja_comprou', false); }
   function oferta1aAtiva() { return pct1a() > 0 && !jaComprou(); }
@@ -434,7 +433,7 @@
   // do CPF. O valor vem do servidor (resumo.previa_primeira), igual ao que será
   // cobrado depois de confirmado. `d` é a resposta inteira do /api/cotar.
   // Campo de cupom (carrinho e checkout). `d` é a resposta do /api/cotar.
-  var CAMPO_CUPOM = false;
+  var CAMPO_CUPOM = true;
   function cupomHtml(d) {
     var cu = d && d.cupom;
     if (estado.cupom) {
@@ -443,7 +442,7 @@
         '<button type="button" class="link" data-action="remover-cupom">remover</button></div>' +
         (cu && cu.mensagem ? '<small>' + h(cu.mensagem) + '</small>' : '') + '</div>';
     }
-    // Sem cupom ativo na loja (a oferta já está no preço): o campo só volta com CAMPO_CUPOM = true.
+    // CAMPO_CUPOM = false esconde o campo (quando não houver cupom ativo na loja).
     if (!CAMPO_CUPOM) return '';
     return '<details class="cupom"><summary>Tem cupom de desconto?</summary><div class="cupom-linha">' +
       '<input id="cupom" name="cupom_codigo" autocomplete="off" autocapitalize="characters" placeholder="Código do cupom" maxlength="40">' +
@@ -853,9 +852,9 @@
       '</div></section>' + secaoLentes() +
       '<section class="leve2"><div class="container">' +
         '<h2 class="display">Todos os óculos com <em>' + d40 + '% OFF.</em></h2>' +
-        '<p>Leve 1, leve 2, leve 5: todo óculos sai com ' + d40 + '% de desconto. O preço que você vê já é o com desconto, sem cupom e sem pegadinha. O frete é um só pro pedido inteiro.</p>' +
+        '<p>Leve 1, leve 2, leve 5: todo óculos sai com ' + d40 + '% de desconto. O preço que você vê já é o com desconto. Na sua 1ª compra, o cupom <b>PRIMEIRACOMPRA</b> troca os ' + d40 + '% por 40%. O frete é um só pro pedido inteiro.</p>' +
         '<a class="btn btn-laranja" href="/modelos" data-link style="justify-self:start">Escolher modelos</a>' +
-        '<div class="passos"><div class="passo"><strong>-' + d40 + '%</strong><span>em todos os óculos</span></div><div class="passo"><strong>0</strong><span>cupom pra lembrar</span></div><div class="passo"><strong>1</strong><span>frete pro pedido inteiro</span></div></div>' +
+        '<div class="passos"><div class="passo"><strong>-' + d40 + '%</strong><span>em todos os óculos</span></div><div class="passo"><strong>-40%</strong><span>na 1ª compra, com cupom</span></div><div class="passo"><strong>1</strong><span>frete pro pedido inteiro</span></div></div>' +
       '</div></section>' +
       '<section class="secao"><div class="container">' +
         '<div class="secao-titulo"><h2 class="display">Como funciona</h2></div>' +
@@ -1230,7 +1229,8 @@
     if (slide) { slide.classList.remove('zoom'); var im = slide.querySelector('img'); if (im) im.style.transformOrigin = ''; }
   }
 
-  function progressoLeve() {
+  function progressoLeve(r) {
+    if (r && r.cupom) return '<div class="progresso"><span class="msg">✓ Cupom ' + h(r.cupom) + ': ' + h(r.desconto_primeira_pct) + '% OFF no lugar dos ' + pctDesconto() + '% da loja</span><div class="barra"><i style="width:100%"></i></div></div>';
     if (!pctDesconto()) return '';
     return '<div class="progresso"><span class="msg">✓ ' + pctDesconto() + '% OFF aplicado em todos os óculos do carrinho</span><div class="barra"><i style="width:100%"></i></div></div>';
   }
@@ -1272,7 +1272,7 @@
       var itens = resumo ? resumo.itens : estado.carrinho.map(function (i) { return { sku: i.sku, nome: i.nome + (i.cor ? ' — ' + i.cor : ''), qty: i.qty, preco: i.preco, total: i.preco * i.qty, imagem: i.imagem }; });
       var unidades = resumo ? resumo.unidades : unidadesCarrinho();
       app.innerHTML = '<div class="container"><div class="secao-titulo" style="margin-top:20px"><h1 class="display" style="font-size:clamp(30px,6vw,48px)">Carrinho</h1><a class="link" href="/modelos" data-link>Continuar comprando</a></div>' +
-        '<div class="carrinho"><div>' + progressoLeve() + '<div class="itens" style="margin-top:10px">' +
+        '<div class="carrinho"><div>' + progressoLeve(resumo && resumo.resumo) + '<div class="itens" style="margin-top:10px">' +
           itens.map(function (it) {
             var local = estado.carrinho.find(function (c) { return c.sku === it.sku; }) || {};
             var img = foto(it.imagem || local.imagem);

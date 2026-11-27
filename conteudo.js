@@ -14,7 +14,7 @@
     'como-comprar': { t: 'Como comprar', d: 'Passo a passo pra comprar sua armação na Só Armação.', b: [
       ['Antes de tudo: vendemos só a armação', 'Nenhum dos nossos produtos vem com lentes de grau. Você compra a armação aqui e uma ótica da sua escolha coloca as lentes do seu grau. Os óculos de sol vêm com lentes solares, sem grau.'],
       ['1 — Escolha a armação', 'Navegue pelos modelos e use os filtros de formato e cor. Todas as medidas (lente, ponte, haste e largura frontal) estão na página de cada modelo — compare com um óculos que já serve bem em você.'],
-      ['2 — Adicione ao carrinho', 'Todos os óculos estão com 40% de desconto, em qualquer quantidade, e o preço da página já é o com desconto (o de tabela aparece riscado). Não precisa de cupom. O frete é um só pro pedido inteiro e é calculado pelo seu CEP.'],
+      ['2 — Adicione ao carrinho', 'Todos os óculos estão com 30% de desconto, em qualquer quantidade, e o preço da página já é o com desconto (o de tabela aparece riscado). Na 1ª compra, o cupom PRIMEIRACOMPRA dá 40% no lugar dos 30%. O frete é um só pro pedido inteiro e é calculado pelo seu CEP.'],
       ['3 — Informe seus dados', 'Nome, CPF, e-mail, WhatsApp, CEP e número. O endereço é preenchido sozinho a partir do CEP.'],
       ['4 — Pague no Pix ou no cartão', 'No Pix, escaneie o QR Code ou copie o código: a confirmação é automática, em segundos. No cartão de crédito, o pagamento abre numa página segura da operadora e você pode parcelar.'],
       ['5 — Receba em casa', 'Até 3 dias úteis na Grande São Paulo e até 5 dias úteis pro resto do Brasil, contados da confirmação do pagamento. O rastreio chega no seu e-mail.'],
@@ -61,7 +61,7 @@
       ['Vocês fazem exame de vista ou montam os óculos?', 'Não. A gente não faz exame de vista, não vende lentes de grau e não monta óculos. Quem coloca as lentes é a ótica que você escolher. Dica: confira as medidas da armação na página do modelo e compare com um óculos que já serve bem em você.'],
       ['Como funciona a troca grátis?', 'Compra online tem direito de arrependimento: em até 7 dias úteis depois de receber, se não serviu, não gostou ou mudou de ideia, a gente troca por outro modelo ou devolve o dinheiro — sem custo, você não paga o frete da devolução. Depois desse prazo, a troca é só por defeito de fabricação.'],
       ['Quanto tempo demora pra chegar?', 'Até 3 dias úteis na Grande São Paulo e até 5 dias úteis pro resto do Brasil, contados da confirmação do pagamento. O código de rastreio chega no seu e-mail.'],
-      ['Como funciona o desconto?', 'Todos os óculos estão com ' + pct + '% de desconto, em qualquer quantidade: leve 1 ou leve 5, cada um sai com ' + pct + '% off. O preço mostrado na loja já é o com desconto, com o preço de tabela riscado ao lado. Não precisa de cupom, e o desconto não vale para o frete.'],
+      ['Como funciona o desconto?', 'Todos os óculos estão com ' + pct + '% de desconto, em qualquer quantidade: leve 1 ou leve 5, cada um sai com ' + pct + '% off. O preço mostrado na loja já é o com desconto, com o preço de tabela riscado ao lado. Na sua 1ª compra, use o cupom PRIMEIRACOMPRA: ele dá 40% sobre o preço de tabela, no lugar dos ' + pct + '% (não soma). Os descontos não valem para o frete.'],
       ['Tem nota fiscal?', 'Sempre. Todo pedido sai com NF-e no seu nome, enviada por e-mail.'],
       ['E se a armação vier com defeito?', 'Passados os 7 dias úteis de arrependimento, a troca é só por defeito de fabricação, como manda o Código de Defesa do Consumidor: até 90 dias depois do recebimento. É só mandar um e-mail com o número do pedido e uma foto. Não oferecemos garantia além do que a lei determina.'],
       ['Quais as formas de pagamento?', 'Pix, com confirmação automática em segundos, ou cartão de crédito, parcelado. O cartão é processado numa página segura da operadora — seus dados não passam pelo nosso site.']
@@ -168,7 +168,7 @@
       d: 'Armações de óculos de grau femininas: gatinho, redonda, quadrada e mais, com troca grátis em até 7 dias úteis.',
       texto: ['As armações femininas da Só Armação vão do gatinho clássico às redondas e quadradas, em metal, acetato colorido e materiais ultraleves. Os modelos unissex também aparecem aqui.',
         'Para escolher, comece pelo formato do rosto ([veja o guia](/guia/armacao-para-cada-tipo-de-rosto)) e depois pelo tamanho: rosto mais fino pede armação P ou M, rosto mais largo pede G. Cada modelo mostra a largura frontal em milímetros.',
-        'Todos os modelos estão com 40% de desconto, em qualquer quantidade, o que ajuda a ter uma para o trabalho e outra para o fim de semana.'] },
+        'Todos os modelos estão com 30% de desconto, em qualquer quantidade, o que ajuda a ter uma para o trabalho e outra para o fim de semana.'] },
     'armacao-masculina': { t: 'Armação de óculos masculina', filtro: { genero: ['Masculino', 'Unissex'] },
       d: 'Armações de óculos de grau masculinas, retangulares, quadradas e redondas, com troca grátis em até 7 dias úteis.',
       texto: ['As armações masculinas da Só Armação têm desenho mais reto e discreto, em metal e acetato, nos formatos retangular, quadrado e redondo. Os modelos unissex também aparecem aqui.',
@@ -183,7 +183,7 @@
       d: 'Armações de óculos de grau até R$ 100 no Pix, com nota fiscal e troca grátis em até 7 dias úteis.',
       texto: ['Aqui estão as armações de grau que custam até R$ 100 no Pix. São os mesmos modelos do resto da loja, com nota fiscal, troca grátis em até 7 dias úteis e o mesmo padrão de acabamento.',
         'A Só Armação vende só a armação e a vende online, sem loja física e sem marca de grife no preço. Por isso consegue cobrar menos. A lente de grau você coloca na ótica que preferir e paga só por ela e pela montagem. [Veja quanto custa fazer óculos de grau](/guia/quanto-custa-fazer-oculos-de-grau).',
-        'Os preços já contam com os 40% de desconto que valem para todos os óculos da loja.'] }
+        'Os preços já contam com os 30% de desconto que valem para todos os óculos da loja.'] }
   };
   function naCategoria(cat, p) {
     var f = cat.filtro;
@@ -269,7 +269,7 @@
           ['Lentes', 'Tipo (visão simples ou multifocal), espessura (índice de refração) e tratamentos, como antirreflexo, filtro de luz azul e lente que escurece no sol.'],
           ['Montagem', 'Corte das lentes no formato da armação. Algumas óticas incluem no preço das lentes; outras cobram à parte para armação trazida pelo cliente.']] } },
         { h: 'O que mais encarece as lentes', lista: ['Multifocal custa bem mais que visão simples.', 'Grau alto pede lente mais fina (índice maior), que é mais cara.', 'Cada tratamento extra soma no preço. Antirreflexo costuma valer a pena; os outros dependem do seu uso.'] },
-        { h: 'Como pagar menos', ol: ['Compre a armação à parte. [Veja armações até R$ 100](/armacoes/armacao-ate-100-reais).', 'Peça orçamento das lentes em duas ou três óticas, com a mesma receita e os mesmos tratamentos.', 'Pergunte se a montagem está incluída.', 'Precisa de dois óculos? Na Só Armação, todas as armações estão com 40% de desconto, em qualquer quantidade.'] }
+        { h: 'Como pagar menos', ol: ['Compre a armação à parte. [Veja armações até R$ 100](/armacoes/armacao-ate-100-reais).', 'Peça orçamento das lentes em duas ou três óticas, com a mesma receita e os mesmos tratamentos.', 'Pergunte se a montagem está incluída.', 'Precisa de dois óculos? Na Só Armação, todas as armações estão com 30% de desconto, em qualquer quantidade.'] }
       ] }
   };
   function guiaHtml(slug, g, precoMin) {

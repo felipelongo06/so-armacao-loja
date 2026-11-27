@@ -6,9 +6,14 @@
  * Ajuda o Google a indexar a loja primeiro e a associar textos e fotos a este
  * domínio — o que conta quando alguém copia o conteúdo pra outro site.
  */
+import '../conteudo.js';
+
 const SITE = 'https://soarmacao.com.br';
 const CATALOGO = process.env.CATALOGO_URL || 'https://api.soarmacao.com.br/api/catalogo';
 const FIXAS = ['/', '/modelos', '/ajuda', '/quem-somos', '/como-comprar', '/entrega', '/pagamento', '/trocas-e-devolucoes', '/privacidade', '/termos', '/contato'];
+// Fase 3 (GEO): categorias e guias, com os mesmos endereços de conteudo.js
+const C = globalThis.SA_CONTEUDO;
+FIXAS.push(...Object.keys(C.categorias).map((k) => `/armacoes/${k}`), '/guia', ...Object.keys(C.guias).map((k) => `/guia/${k}`));
 
 const xml = (s) => String(s ?? '').replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]));
 const data = (s) => (s ? String(s).slice(0, 10) : null);

@@ -53,6 +53,8 @@ const ldLista = (produtos) => ({
   '@context': 'https://schema.org', '@type': 'ItemList', numberOfItems: produtos.length,
   itemListElement: produtos.map((p, i) => ({ '@type': 'ListItem', position: i + 1, url: SITE + urlProduto(p), name: p.nome })),
 });
+const ldPerguntas = (pares) => ({ '@context': 'https://schema.org', '@type': 'FAQPage',
+  mainEntity: pares.map(([q, r]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: C.semLinks(r) } })) });
 const ldFaq = (l2) => ({
   '@context': 'https://schema.org', '@type': 'FAQPage',
   mainEntity: C.faq(l2).map(([q, r]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: r } })),
@@ -185,6 +187,7 @@ function paginaProduto(cat, codigo, cor) {
     ? 'Vem com lentes de sol, sem grau. Precisa de grau? Leve à ótica da sua preferência com a sua receita e peça para colocarem as lentes do seu grau.'
     : 'Vendemos só a armação: ela vem sem lentes de grau. Quando chegar, leve à ótica da sua preferência com a sua receita (ou faça lá o exame de vista) e peça para colocarem as lentes de grau.';
   const relacionados = (cat.produtos || []).filter((x) => x.codigo !== p.codigo && x.formato === p.formato && x.estoque_total > 0).slice(0, 4);
+  const ficha = C.fichaModelo(p, v);
 
   const corpo = '<div class="container">' + migalhas(trilha) +
     '<div class="produto">' +
@@ -201,8 +204,10 @@ function paginaProduto(cat, codigo, cor) {
           linhasMedidas.map(([k, val]) => `<tr><th>${h(k)}</th><td>${h(val)}</td></tr>`).join('') +
           `<tr><th>Código</th><td>${h(v.sku)}</td></tr></tbody></table></div>` +
         (desc ? `<div><h2 class="bloco-titulo">Sobre o modelo</h2><p class="descricao">${h(desc)}</p></div>` : '') +
+        C.fichaHtml(ficha) +
       '</div>' +
     '</div>' +
+    C.faqModeloHtml(ficha) +
     (relacionados.length ? '<section class="secao"><h2 class="display">Combina com</h2>' + listaModelos(relacionados) + '</section>' : '') +
     '</div>';
 
@@ -244,6 +249,7 @@ function paginaProduto(cat, codigo, cor) {
       hasVariant: vs.map(variante),
     },
     { '@context': 'https://schema.org', ...ldMigalhas(trilha) },
+    ldPerguntas(ficha.faq),
   ];
   return {
     status: 200,
@@ -307,6 +313,50 @@ function paginaInstitucional(chave) {
   return { status: 200, titulo: `${pg.t} — Só Armação`, descricao: pg.d, caminho: `/${chave}`, ld: [{ '@context': 'https://schema.org', ...ldMigalhas(trilha) }], corpo };
 }
 
+function paginaCategoria(cat, chave) {
+  const c = C.categorias[chave];
+  if (!c) return null;
+  const produtos = (cat.produtos || []).filter((p) => C.naCategoria(c, p));
+  const min = produtos.reduce((a, p) => (a == null || p.preco < a ? p.preco : a), null);
+  const trilha = [['Início', '/'], ['Modelos', '/modelos'], [c.t, null]];
+  const corpo = '<div class="container"><div class="institucional categoria">' + migalhas(trilha) + `<h1 class="display">${h(c.t)}</h1>` +
+    C.categoriaTopoHtml(c, produtos.length, min, fmt) + '</div>' + listaModelos(produtos) +
+    '<p class="categoria-outras">Veja também: ' + Object.keys(C.categorias).filter((k) => k !== chave)
+      .map((k) => `<a href="/armacoes/${k}" data-link>${h(C.categorias[k].t.replace('Armação de óculos ', ''))}</a>`).join(' · ') + '</p></div>';
+  return {
+    status: 200, titulo: `${c.t}${min && !c.filtro.precoMax ? ' a partir de ' + fmt(min) : ''} | Só Armação`, descricao: c.d, caminho: `/armacoes/${chave}`, corpo,
+    ld: [{ '@context': 'https://schema.org', '@type': 'CollectionPage', name: c.t, description: c.d, url: `${SITE}/armacoes/${chave}` },
+      { '@context': 'https://schema.org', ...ldMigalhas([['Início', '/'], ['Modelos', '/modelos'], [c.t, `/armacoes/${chave}`]]) }, ldLista(produtos)],
+  };
+}
+function paginaGuias() {
+  return {
+    status: 200, titulo: 'Guias para escolher a armação de óculos | Só Armação', caminho: '/guia', corpo: C.guiasIndiceHtml(),
+    descricao: 'Guias da Só Armação para escolher a armação certa: tamanho, formato de rosto, material e quanto custa o óculos de grau.',
+    ld: [{ '@context': 'https://schema.org', ...ldMigalhas([['Início', '/'], ['Guias', '/guia']]) },
+      { '@context': 'https://schema.org', '@type': 'ItemList', itemListElement: Object.keys(C.guias).map((k, i) => ({ '@type': 'ListItem', position: i + 1, url: `${SITE}/guia/${k}`, name: C.guias[k].t })) }],
+  };
+}
+function paginaGuia(cat, chave) {
+  const g = C.guias[chave];
+  if (!g) return null;
+  const caminho = `/guia/${chave}`;
+  return {
+    status: 200, titulo: `${g.t} | Só Armação`, descricao: g.d, caminho, ogType: 'article',
+    corpo: C.guiaHtml(chave, g, fmt(precoMinimo(cat))),
+    ld: [{
+      '@context': 'https://schema.org', '@type': 'Article', headline: g.t, description: g.d, inLanguage: 'pt-BR',
+      mainEntityOfPage: SITE + caminho, image: `${SITE}/og.jpg`, datePublished: GUIAS_DATA, dateModified: GUIAS_DATA,
+      author: { '@type': 'Organization', name: 'Só Armação', url: SITE + '/' }, publisher: { '@type': 'Organization', name: 'Só Armação', logo: { '@type': 'ImageObject', url: `${SITE}/icon-512.png` } },
+    }, { '@context': 'https://schema.org', ...ldMigalhas([['Início', '/'], ['Guias', '/guia'], [g.t, caminho]]) }],
+  };
+}
+const GUIAS_DATA = '2026-11-27';
+const naoAchou = (caminho, voltar) => ({
+  status: 404, titulo: 'Página não encontrada — Só Armação', descricao: 'Essa página não existe na Só Armação.', caminho, noindex: true,
+  corpo: `<div class="container institucional"><h1 class="display">Essa página não existe.</h1><p><a href="${voltar}" data-link>Voltar →</a></p></div>`,
+});
+
 // /llms.txt: resumo da loja em Markdown pra assistentes de IA (llmstxt.org).
 function llmsTxt(cat) {
   const l2 = cat.regras?.leve2_pct ?? 40;
@@ -333,6 +383,14 @@ function llmsTxt(cat) {
     `- [Todos os modelos](${SITE}/modelos)`,
     `- [Óculos de grau](${SITE}/modelos?tipo=grau)`,
     `- [Óculos de sol](${SITE}/modelos?tipo=sol)`,
+    '',
+    '## Guias',
+    '',
+    ...Object.entries(C.guias).map(([k, g]) => `- [${g.t}](${SITE}/guia/${k}): ${g.d}`),
+    '',
+    '## Armações por categoria',
+    '',
+    ...Object.entries(C.categorias).map(([k, c]) => `- [${c.t}](${SITE}/armacoes/${k}): ${c.d}`),
     '',
     '## Como comprar e políticas',
     '',
@@ -404,7 +462,11 @@ export async function GET(request) {
     }
     const cat = await catalogo();
     if (r === 'llms') return resposta(llmsTxt(cat), 200, 'text/plain; charset=utf-8');
-    const pg = r === 'produto' ? paginaProduto(cat, q.get('codigo'), q.get('cor'))
+    const chave = String(q.get('slug') || '').replace(/\/+$/, '');
+    const pg = r === 'categoria' ? (paginaCategoria(cat, chave) || naoAchou(`/armacoes/${chave}`, '/modelos'))
+      : r === 'guias' ? paginaGuias()
+      : r === 'guia' ? (paginaGuia(cat, chave) || naoAchou(`/guia/${chave}`, '/guia'))
+      : r === 'produto' ? paginaProduto(cat, q.get('codigo'), q.get('cor'))
       : r === 'modelos' ? paginaModelos(cat, ['sol', 'grau'].includes(q.get('tipo')) ? q.get('tipo') : null)
       : paginaHome(cat);
     return resposta(montar(pg), pg.status);

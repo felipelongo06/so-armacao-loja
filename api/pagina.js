@@ -188,12 +188,14 @@ function paginaProduto(cat, codigo, cor) {
     : 'Vendemos só a armação: ela vem sem lentes de grau. Quando chegar, leve à ótica da sua preferência com a sua receita (ou faça lá o exame de vista) e peça para colocarem as lentes de grau.';
   const relacionados = (cat.produtos || []).filter((x) => x.codigo !== p.codigo && x.formato === p.formato && x.estoque_total > 0).slice(0, 4);
   const ficha = C.fichaModelo(p, v);
+  const nota = p.avaliacao && p.avaliacao.total > 0 && p.avaliacao.media ? p.avaliacao : null;
 
   const corpo = '<div class="container">' + migalhas(trilha) +
     '<div class="produto">' +
       (imagens.length ? `<figure class="ssr-foto"><img src="${h(imagens[0])}" alt="${h(p.nome + (v.cor ? ' ' + v.cor : ''))}" width="800" height="800"></figure>` : '') +
       '<div class="produto-info">' +
         `<div><span class="card-linha">${h([p.formato || 'Armação', TIPOS[v.tipo || p.tipo], p.marca].filter(Boolean).join(' · '))}</span><h1 class="display">${h(p.nome)}</h1></div>` +
+        (nota ? `<p class="aval-resumo">Nota ${h(String(Number(nota.media).toFixed(1)).replace('.', ','))} de 5, em ${nota.total} avaliaç${nota.total === 1 ? 'ão' : 'ões'} de compra verificada</p>` : '') +
         `<div class="preco-bloco">${v.preco_de > v.preco ? `<s>${h(fmt(v.preco_de))}</s> ` : ''}<span class="valor">${h(fmt(v.preco))} <small>no Pix</small></span>` +
           `<span class="segunda">Levando 2, a 2ª sai por ${h(fmt(v.preco * (1 - l2 / 100)))}</span><span class="parcelas">ou no cartão em até 6x</span></div>` +
         (vs.length ? `<div class="cores"><span class="rotulo">${vs.length > 1 ? `${vs.length} cores` : 'Cor'}:</span><ul>` +
@@ -245,6 +247,7 @@ function paginaProduto(cat, codigo, cor) {
       ...(p.material ? { material: p.material } : {}),
       ...(p.peso_gramas ? { weight: { '@type': 'QuantitativeValue', value: p.peso_gramas, unitCode: 'GRM' } } : {}),
       ...(propriedades.length ? { additionalProperty: propriedades } : {}),
+      ...(nota ? { aggregateRating: { '@type': 'AggregateRating', ratingValue: Number(nota.media).toFixed(1), reviewCount: nota.total, bestRating: 5, worstRating: 1 } } : {}),
       variesBy: 'https://schema.org/color',
       hasVariant: vs.map(variante),
     },
@@ -446,9 +449,13 @@ function resposta(corpo, status, tipo = 'text/html; charset=utf-8') {
   });
 }
 
+const ROBOS = /GPTBot|OAI-SearchBot|ChatGPT-User|ClaudeBot|Claude-User|Claude-SearchBot|PerplexityBot|Perplexity-User|Google-Extended|Googlebot|bingbot|Applebot|Bytespider|CCBot|meta-externalagent|DuckAssistBot|Amazonbot/i;
+
 export async function GET(request) {
   const q = new URL(request.url).searchParams;
   const r = q.get('r') || 'home';
+  const robo = (request.headers.get('user-agent') || '').match(ROBOS);
+  if (robo) console.log(`[robo] ${robo[0]} ${r} ${q.get('codigo') || q.get('slug') || q.get('pagina') || ''}`.trim());
   try {
     if (r === 'institucional') {
       const chave = q.get('pagina');

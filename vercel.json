@@ -11,6 +11,11 @@
       ],
       "destination": "https://soarmacao.com.br/:caminho*",
       "permanent": true
+    },
+    {
+      "source": "/index.html",
+      "destination": "/",
+      "permanent": true
     }
   ],
   "rewrites": [
@@ -28,43 +33,71 @@
     },
     {
       "source": "/",
-      "destination": "/index.html"
+      "destination": "/api/pagina?r=home"
     },
     {
-      "source": "/:pagina(modelos|carrinho|checkout|pix|confirmacao|ajuda|garantia|quem-somos|como-comprar|entrega|pagamento|trocas-e-devolucoes|privacidade|termos|contato)",
-      "destination": "/index.html"
+      "source": "/llms.txt",
+      "destination": "/api/pagina?r=llms"
     },
     {
-      "source": "/:pagina(modelos|carrinho|checkout|pix|confirmacao|ajuda|garantia|quem-somos|como-comprar|entrega|pagamento|trocas-e-devolucoes|privacidade|termos|contato)/",
-      "destination": "/index.html"
+      "source": "/modelos",
+      "destination": "/api/pagina?r=modelos"
+    },
+    {
+      "source": "/modelos/",
+      "destination": "/api/pagina?r=modelos"
+    },
+    {
+      "source": "/ajuda",
+      "destination": "/api/pagina?r=ajuda"
+    },
+    {
+      "source": "/ajuda/",
+      "destination": "/api/pagina?r=ajuda"
+    },
+    {
+      "source": "/:pagina(quem-somos|como-comprar|entrega|pagamento|trocas-e-devolucoes|privacidade|termos|contato)",
+      "destination": "/api/pagina?r=institucional&pagina=:pagina"
+    },
+    {
+      "source": "/:pagina(quem-somos|como-comprar|entrega|pagamento|trocas-e-devolucoes|privacidade|termos|contato)/",
+      "destination": "/api/pagina?r=institucional&pagina=:pagina"
     },
     {
       "source": "/p/:codigo",
-      "destination": "/index.html"
+      "destination": "/api/pagina?r=produto&codigo=:codigo"
     },
     {
       "source": "/p/:codigo/",
-      "destination": "/index.html"
+      "destination": "/api/pagina?r=produto&codigo=:codigo"
+    },
+    {
+      "source": "/:pagina(carrinho|checkout|pix|confirmacao|garantia)",
+      "destination": "/app.html"
+    },
+    {
+      "source": "/:pagina(carrinho|checkout|pix|confirmacao|garantia)/",
+      "destination": "/app.html"
     },
     {
       "source": "/avaliar/:token",
-      "destination": "/index.html"
+      "destination": "/app.html"
     },
     {
       "source": "/atendimento/:token",
-      "destination": "/index.html"
+      "destination": "/app.html"
     },
     {
       "source": "/:pagina(entrar|conta)",
-      "destination": "/index.html"
+      "destination": "/app.html"
     },
     {
       "source": "/:pagina(entrar|conta)/",
-      "destination": "/index.html"
+      "destination": "/app.html"
     },
     {
       "source": "/conta/:caminho*",
-      "destination": "/index.html"
+      "destination": "/app.html"
     }
   ],
   "headers": [
@@ -93,5 +126,10 @@
         }
       ]
     }
-  ]
+  ],
+  "functions": {
+    "api/pagina.js": {
+      "includeFiles": "app.html"
+    }
+  }
 }

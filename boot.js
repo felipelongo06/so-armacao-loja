@@ -1,5 +1,5 @@
 /* Só Armação — início da página (carregado no <head>, antes do CSS).
- * Fica num arquivo (e não inline no index.html) pra CSP do vercel.json poder
+ * Fica num arquivo (e não inline no app.html) pra CSP do vercel.json poder
  * proibir qualquer script inline: só roda JS servido por origens da lista.
  */
 (function () {
@@ -41,7 +41,7 @@
     } catch (e) {}
   })();
 
-  // GA4 + Google Ads (o gtag.js é carregado pelo <script async> do index.html)
+  // GA4 + Google Ads (o gtag.js é carregado pelo <script async> do app.html)
   window.dataLayer = window.dataLayer || [];
   window.gtag = function () { window.dataLayer.push(arguments); };
   window.gtag('js', new Date());

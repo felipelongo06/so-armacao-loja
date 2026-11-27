@@ -778,3 +778,11 @@ body[data-tela="pagamento"] .wa-botao, body[data-tela="pagamento"] .wa-painel { 
 .cupom.ok { color: var(--verde); }
 .cupom.erro small { color: #b42318; }
 .cupom small { display: block; margin-top: 4px; }
+
+/* Conteúdo montado pelo servidor (api/pagina.js) para robôs e para a 1ª pintura;
+   o app.js troca por a tela completa assim que o catálogo carrega. */
+#app[data-ssr] .ssr-foto { margin: 0; }
+#app[data-ssr] .ssr-foto img { width: 100%; height: auto; max-width: 560px; display: block; }
+#app[data-ssr] .ssr-lista { list-style: none; padding: 0; margin: 16px 0 32px; display: grid; gap: 8px; }
+#app[data-ssr] .ssr-lista span { color: #555; font-size: .9em; }
+#app[data-ssr] .cores ul { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 16px; }

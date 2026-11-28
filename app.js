@@ -899,6 +899,56 @@
       : 'Quando chegar, leve à ótica da sua preferência com a sua receita (ou faça lá o exame de vista) e peça para colocarem as lentes de grau.';
     return '<div class="aviso-lentes" role="note">' + ICONE_LENTES + '<p><strong>' + h(titulo) + '</strong>' + h(texto) + ' <a href="/como-comprar" data-link>Como funciona</a></p></div>';
   }
+  // Página de produto: selo de 1 linha (o aviso grande empurrava o botão pra baixo no
+  // celular). A explicação completa fica em /como-comprar e na tabela de medidas.
+  function seloLentes(sol) {
+    return '<p class="selo-lentes" role="note">' + ICONE_LENTES.replace(/width="36" height="36"/, 'width="22" height="22"') +
+      '<span><strong>' + (sol ? 'Vem com lentes de sol, sem grau.' : 'Só a armação: vem sem lentes de grau.') + '</strong> ' +
+      (sol ? 'Precisa de grau? Sua ótica coloca.' : 'Sua ótica coloca as lentes.') + ' <a href="/como-comprar" data-link>Como funciona</a></span></p>';
+  }
+  // Frete e prazo na página de produto: mesma cotação do carrinho (/api/cotar, com
+  // este óculos, 1 unidade), sem mexer no carrinho. O CEP fica salvo e o carrinho usa.
+  function freteProdutoHtml() {
+    var gratis = estado.regras && estado.regras.frete_gratis_acima_de_centavos;
+    return '<div class="frete-produto">' +
+      '<form class="cep-produto" data-action="cep-produto" novalidate>' +
+        '<label for="cep-produto">Frete e prazo de entrega</label>' +
+        '<div class="cep-produto-linha"><input id="cep-produto" name="cep" inputmode="numeric" autocomplete="postal-code" placeholder="Digite seu CEP" maxlength="9" value="' + h(estado.cep) + '">' +
+        '<button class="btn btn-contorno" type="submit">Calcular</button></div>' +
+      '</form>' +
+      '<div id="frete-produto-res" aria-live="polite">' +
+        (gratis ? '<p class="frete-nota">Frete grátis em pedidos acima de ' + h(fmt(gratis / 100)) + '.</p>' : '<p class="frete-nota">Enviamos para todo o Brasil. O frete é um só pro pedido inteiro.</p>') +
+      '</div></div>';
+  }
+  var freteProdutoSeq = 0;
+  function calcularFreteProduto(avisar) {
+    var input = document.getElementById('cep-produto');
+    var res = document.getElementById('frete-produto-res');
+    var sku = estado.freteProdutoSku;
+    if (!input || !res || !sku) return;
+    var cep = mascara('cep', input.value);
+    if (digitos(cep).length !== 8) { if (avisar) toast('Digite o CEP completo, com 8 números.'); return; }
+    var seq = ++freteProdutoSeq;
+    res.innerHTML = '<p class="frete-nota">Calculando o frete…</p>';
+    fetch(CONFIG.api + '/api/cotar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ itens: [{ sku: sku, qty: 1 }], cep: digitos(cep) }) })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (x) {
+        if (seq !== freteProdutoSeq || !document.getElementById('frete-produto-res')) return;
+        if (!x.ok) throw new Error(x.d && x.d.erro ? x.d.erro : 'Não foi possível calcular o frete agora.');
+        var r = x.d.resumo || {};
+        var opcoes = (r.frete_opcoes || []).length ? r.frete_opcoes : (r.frete != null ? [{ titulo: r.frete_titulo || 'Entrega', prazo: r.frete_prazo || '', preco: r.frete }] : []);
+        if (!opcoes.length) throw new Error('Não achamos entrega pra esse CEP. Confira os números.');
+        estado.cep = cep; gravar('sa_cep', cep);
+        res.innerHTML = '<ul class="frete-lista">' + opcoes.map(function (o) {
+          return '<li><span><b>' + h(o.titulo) + '</b>' + (o.prazo ? ' · ' + h(o.prazo) : '') + '</span><span class="frete-lista-preco">' + (o.preco === 0 ? 'grátis' : h(fmt(o.preco))) + '</span></li>';
+        }).join('') + '</ul><p class="frete-nota">Para ' + h(cep) + '. O frete é um só pro pedido inteiro.</p>';
+        if (window.clarity) try { window.clarity('event', 'frete_produto'); } catch (e) {}
+      })
+      .catch(function (e) {
+        if (seq !== freteProdutoSeq || !document.getElementById('frete-produto-res')) return;
+        res.innerHTML = '<p class="frete-nota erro">' + h(e && e.message && !/fetch|network|json/i.test(e.message) ? e.message : 'Não foi possível calcular o frete agora. Tente de novo.') + '</p>';
+      });
+  }
   function secaoLentes() {
     return '<section class="lentes" aria-labelledby="lentes-titulo"><div class="container">' +
       '<div class="lentes-texto"><span class="lentes-tag">Importante</span>' +
@@ -988,17 +1038,22 @@
     app.innerHTML = '<div class="container">' +
       '<nav class="migalhas" aria-label="Você está em"><a href="/" data-link>Início</a> › <a href="/modelos" data-link>Modelos</a> › ' + (p.formato ? '<a href="/modelos?formato=' + h(slug(p.formato)) + '" data-link>' + h(p.formato) + '</a> › ' : '') + '<span>' + h(p.nome) + '</span></nav>' +
       '<div class="produto">' +
-        galeriaHtml(fotos, p.nome + (v.cor ? ' ' + v.cor : ''), esgotado ? '<span class="badge esgotado">Esgotado</span>' : (v.estoque <= 5 ? '<span class="badge">' + rotuloEstoque(v.estoque) + '</span>' : '')) +
-        '<div class="produto-info">' +
+        // Nome e preço vêm antes da galeria no HTML: no celular aparecem na 1ª tela;
+        // no computador o grid põe os dois na coluna da direita, ao lado das fotos.
+        '<div class="produto-topo">' +
           '<div><span class="card-linha">' + h(p.formato || 'Armação') + (rotuloTipo(p, v) ? ' · ' + h(rotuloTipo(p, v)) : '') + (p.marca ? ' · ' + h(p.marca) : '') + '</span><h1 class="display">' + h(p.nome) + '</h1></div>' +
           '<div class="preco-bloco">' + riscado(v, true) + '<span class="valor">' + h(fmt(v.preco)) + '<small>no Pix</small></span>' +
             (pctDesconto() ? '<span class="segunda">' + pctDesconto() + '% OFF em todos os óculos, em qualquer quantidade</span>' : '') +
             '<span class="parcelas">ou no cartão em até 6x</span></div>' +
+        '</div>' +
+        galeriaHtml(fotos, p.nome + (v.cor ? ' ' + v.cor : ''), esgotado ? '<span class="badge esgotado">Esgotado</span>' : (v.estoque <= 5 ? '<span class="badge">' + rotuloEstoque(v.estoque) + '</span>' : '')) +
+        '<div class="produto-info">' +
           (variacoes.length > 1 ? '<div class="cores"><span class="rotulo">Cor: ' + h(v.cor) + '</span><div class="opcoes">' + variacoes.map(function (x) {
               return '<a class="cor-opcao' + (x.sku === v.sku ? ' ativo' : '') + (x.estoque > 0 ? '' : ' esgotado') + '" href="' + h(x.url) + '" data-link title="' + h(x.cor) + '">' + (x.imagem ? '<img src="' + h(foto(x.imagem)) + '" alt="">' : '') + '<span>' + h(x.cor) + (x.tipo === 'sol' ? ' <small>(sol)</small>' : '') + '</span></a>';
             }).join('') + '</div></div>' : (v.cor ? '<div class="cores"><span class="rotulo">Cor: ' + h(v.cor) + '</span></div>' : '')) +
           (esgotado ? '<p class="estoque-aviso zero">Essa cor está esgotada no momento.</p>' : (v.estoque <= 5 ? '<p class="estoque-aviso">' + rotuloEstoque(v.estoque) + ' em estoque.</p>' : '')) +
-          avisoLentes(v.tipo === 'sol') +
+          seloLentes(v.tipo === 'sol') +
+          (esgotado ? '' : freteProdutoHtml()) +
           '<div class="acoes">' +
             '<button class="btn btn-laranja btn-bloco" data-action="comprar" data-sku="' + h(v.sku) + '"' + (esgotado ? ' disabled' : '') + '>Comprar agora</button>' +
             '<button class="btn btn-contorno btn-bloco" data-action="adicionar" data-sku="' + h(v.sku) + '"' + (esgotado ? ' disabled' : '') + '>Adicionar ao carrinho</button>' +
@@ -1026,6 +1081,8 @@
       '</div>' +
       (esgotado ? '' : '<div class="barra-comprar"><div class="container"><button class="btn btn-laranja btn-bloco" data-action="comprar" data-sku="' + h(v.sku) + '">Comprar agora · ' + h(fmt(v.preco)) + '</button></div></div>');
     track('view_item', { value: v.preco, items: [itemGA(p, v, 1)] });
+    estado.freteProdutoSku = esgotado ? null : v.sku;
+    if (!esgotado && digitos(estado.cep).length === 8) calcularFreteProduto(false);
     registrarModeloVisto(p.codigo);
     carregarAvaliacoes(p);
     conferirFavorito(p.codigo);
@@ -2575,6 +2632,7 @@
     if (form.matches('[data-action="atend-abrir"]')) { e.preventDefault(); abrirAtendConta(form); return; }
     if (form.matches('[data-action="atend-responder"]')) { e.preventDefault(); responderAtend(form); return; }
     if (form.matches('[data-action="atend-contato"]')) { e.preventDefault(); abrirAtendContato(form); return; }
+    if (form.matches('[data-action="cep-produto"]')) { e.preventDefault(); calcularFreteProduto(true); return; }
     if (form.matches('[data-action="cep"]')) {
       e.preventDefault();
       var cep = mascara('cep', form.cep.value);
@@ -2588,6 +2646,7 @@
   document.addEventListener('input', function (e) {
     var el = e.target;
     if (el.matches('#cep')) el.value = mascara('cep', el.value);
+    else if (el.matches('#cep-produto')) { el.value = mascara('cep', el.value); if (digitos(el.value).length === 8) calcularFreteProduto(false); }
     else if (el.matches('input[data-mascara="tel"]')) el.value = mascara('tel', el.value);
     else if (el.matches('textarea[data-contador]')) {
       var cont = document.getElementById(el.dataset.contador), n = el.value.trim().length;

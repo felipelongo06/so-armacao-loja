@@ -165,6 +165,21 @@ function faqHtml(l2) {
   return '<div class="faq">' + C.faq(l2).map(([p, r]) => `<details><summary>${h(p)}</summary><p>${h(r)}</p></details>`).join('') + '</div>';
 }
 
+// Endereço antigo ou alternativo de produto (/p/FL5534/, /p/FL5534-PRETO/, slug com
+// maiúscula…): devolve o endereço oficial pra um 301 de verdade. Antes respondia 200 e
+// só a canonical / o JavaScript levavam ao endereço novo. null = já é o oficial ou não existe.
+function enderecoOficial(cat, codigo, cor) {
+  const achado = acharProduto(cat, codigo);
+  if (!achado) return null;
+  const oficial = urlProduto(achado.produto);
+  const pedido = `/p/${String(codigo || '').replace(/\/+$/, '')}/`;
+  if (pedido === oficial) return null;
+  // Link por SKU leva à cor daquele SKU; senão mantém a ?cor= que veio.
+  if (achado.variacao?.url) return achado.variacao.url;
+  const corOk = cor && /^[a-z0-9-]{1,60}$/.test(cor) ? cor : null;
+  return corOk ? `${oficial}?cor=${corOk}` : oficial;
+}
+
 // --- páginas -------------------------------------------------------------
 function paginaProduto(cat, codigo, cor) {
   const achado = acharProduto(cat, codigo);
@@ -484,6 +499,10 @@ export async function GET(request) {
     }
     const cat = await catalogo();
     if (r === 'llms') return resposta(llmsTxt(cat), 200, 'text/plain; charset=utf-8');
+    if (r === 'produto') {
+      const destino = enderecoOficial(cat, q.get('codigo'), q.get('cor'));
+      if (destino) return new Response(null, { status: 301, headers: { Location: SITE + destino, 'Cache-Control': 'public, max-age=3600' } });
+    }
     const chave = String(q.get('slug') || '').replace(/\/+$/, '');
     const pg = r === 'categoria' ? (paginaCategoria(cat, chave) || naoAchou(`/armacoes/${chave}`, '/modelos'))
       : r === 'guias' ? paginaGuias()

@@ -142,7 +142,11 @@
           contents: it2.map(function (i) { return { id: i.item_id, quantity: i.quantity }; }),
           num_items: it2.reduce(function (s, i) { return s + i.quantity; }, 0), currency: 'BRL', value: params.value
         });
-      } else if (nome === 'add_payment_info') {
+      }
+      // Clarity: os mesmos passos do funil viram eventos próprios (o "Finalizar compra"
+      // automático do Clarity contava errado: 54 sessões contra 8 checkouts reais).
+      if (window.clarity && /^(add_to_cart|view_cart|begin_checkout|add_payment_info)$/.test(nome)) window.clarity('event', nome);
+      if (nome === 'add_payment_info') {
         if (gtag) gtag('event', 'add_payment_info', { currency: 'BRL', value: params.value, payment_type: params.payment_type, items: params.items });
         if (fbq) fbq('track', 'AddPaymentInfo', { currency: 'BRL', value: params.value });
       }
@@ -444,6 +448,14 @@
     }
     // CAMPO_CUPOM = false esconde o campo (quando não houver cupom ativo na loja).
     if (!CAMPO_CUPOM) return '';
+    // 1ª compra: o servidor manda quanto o pedido fica com o PRIMEIRACOMPRA (mesma regra
+    // que cobra). Mostra o valor e aplica com um toque; o CPF confirma no checkout.
+    var pv = d && d.previa_cupom;
+    if (pv && !jaComprou()) {
+      return '<div class="previa-1a previa-cupom"><span>1ª compra? Com o cupom ' + h(pv.codigo) + (pv.total != null ? ' seu total fica' : ' os óculos ficam por') + '</span><strong>' + h(fmt(pv.total != null ? pv.total : pv.produtos)) + '</strong>' +
+        '<small>' + pv.pct + '% OFF no preço cheio, no lugar dos ' + pctDesconto() + '% · mais ' + h(fmt(pv.economia_extra)) + ' de desconto · confirmado pelo CPF no checkout</small>' +
+        '<button type="button" class="btn btn-verde" data-action="aplicar-cupom" data-cupom="' + h(pv.codigo) + '">Aplicar cupom</button></div>';
+    }
     return '<details class="cupom"><summary>Tem cupom de desconto?</summary><div class="cupom-linha">' +
       '<input id="cupom" name="cupom_codigo" autocomplete="off" autocapitalize="characters" placeholder="Código do cupom" maxlength="40">' +
       '<button type="button" class="btn btn-verde" data-action="aplicar-cupom">Aplicar</button></div></details>';
@@ -528,7 +540,7 @@
     document.querySelectorAll('.nav a[data-nav]').forEach(function (a) { a.classList.toggle('ativo', !!rota && a.getAttribute('data-nav') === rota.nav); });
     jsonLd(null);
     naoIndexar(!rota || rota.nav === 'carrinho' || rota.nav === 'conta');
-    document.body.setAttribute('data-tela', !rota ? '' : /^\/(checkout|pix)/.test(caminho) ? 'pagamento' : /^\/p\//.test(caminho) ? 'produto' : '');
+    document.body.setAttribute('data-tela', !rota ? '' : /^\/(checkout|pix)/.test(caminho) ? 'pagamento' : /^\/p\//.test(caminho) ? 'produto' : /^\/carrinho\/?$/.test(caminho) ? 'carrinho' : '');
     if (typeof waFecharPainel === 'function' && document.getElementById('wa-painel')) waFecharPainel();
     window.scrollTo(0, 0);
     if (!rota) { titulo('Página não encontrada'); app.innerHTML = '<div class="container institucional"><h1 class="display">Essa página não existe.</h1><p>O endereço pode ter mudado. <a href="/modelos" data-link>Ver todos os modelos →</a></p></div>'; track('page_view', { page: '404' }); return; }
@@ -871,15 +883,15 @@
   }
   function beneficio(tipo, texto) {
     var icones = {
-      qualidade: '<svg viewBox="0 0 32 32" fill="none" stroke="#0B6B3A" stroke-width="2.2"><path d="M16 3l3.5 3.8 5.1-.7.7 5.1 3.7 3.6-3.7 3.6-.7 5.1-5.1-.7L16 26.6l-3.5-3.8-5.1.7-.7-5.1L3 15.8l3.7-3.6.7-5.1 5.1.7z"/><path d="M11 16l3.2 3.2L21 12.5"/></svg>',
-      preco: '<svg viewBox="0 0 32 32" fill="none" stroke="#0B6B3A" stroke-width="2.2"><path d="M4 16.5V6a2 2 0 012-2h10.5L28 15.5 17.5 26z"/><circle cx="10" cy="10" r="1.8" fill="#0B6B3A"/></svg>',
-      online: '<svg viewBox="0 0 32 32" fill="none" stroke="#0B6B3A" stroke-width="2.2"><rect x="3" y="9" width="17" height="12" rx="1"/><path d="M20 13h5l4 4v4h-9zM7 25h.01M25 25h.01"/><circle cx="8" cy="24" r="2"/><circle cx="24" cy="24" r="2"/></svg>',
-      troca: '<svg viewBox="0 0 32 32" fill="none" stroke="#0B6B3A" stroke-width="2.2"><path d="M7 12a10 10 0 0117-3l3 3M25 20a10 10 0 01-17 3l-3-3"/><path d="M27 6v6h-6M5 26v-6h6"/></svg>'
+      qualidade: '<svg width="30" height="30" viewBox="0 0 32 32" fill="none" stroke="#0B6B3A" stroke-width="2.2"><path d="M16 3l3.5 3.8 5.1-.7.7 5.1 3.7 3.6-3.7 3.6-.7 5.1-5.1-.7L16 26.6l-3.5-3.8-5.1.7-.7-5.1L3 15.8l3.7-3.6.7-5.1 5.1.7z"/><path d="M11 16l3.2 3.2L21 12.5"/></svg>',
+      preco: '<svg width="30" height="30" viewBox="0 0 32 32" fill="none" stroke="#0B6B3A" stroke-width="2.2"><path d="M4 16.5V6a2 2 0 012-2h10.5L28 15.5 17.5 26z"/><circle cx="10" cy="10" r="1.8" fill="#0B6B3A"/></svg>',
+      online: '<svg width="30" height="30" viewBox="0 0 32 32" fill="none" stroke="#0B6B3A" stroke-width="2.2"><rect x="3" y="9" width="17" height="12" rx="1"/><path d="M20 13h5l4 4v4h-9zM7 25h.01M25 25h.01"/><circle cx="8" cy="24" r="2"/><circle cx="24" cy="24" r="2"/></svg>',
+      troca: '<svg width="30" height="30" viewBox="0 0 32 32" fill="none" stroke="#0B6B3A" stroke-width="2.2"><path d="M7 12a10 10 0 0117-3l3 3M25 20a10 10 0 01-17 3l-3-3"/><path d="M27 6v6h-6M5 26v-6h6"/></svg>'
     };
     return '<div class="beneficio">' + icones[tipo] + '<span>' + h(texto) + '</span></div>';
   }
   // Vendemos só a armação: lente de grau é com a ótica do cliente. Aparece onde ele decide a compra.
-  var ICONE_LENTES = '<svg viewBox="0 0 40 40" fill="none" stroke="#06301B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="22" r="7"/><circle cx="29" cy="22" r="7"/><path d="M18 21.5c1.3-1.3 2.7-1.3 4 0M4 20l2-7M36 20l-2-7"/><path d="M8.5 19.5l5 5M26.5 19.5l5 5" stroke="#E5741A"/></svg>';
+  var ICONE_LENTES = '<svg width="36" height="36" viewBox="0 0 40 40" fill="none" stroke="#06301B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="22" r="7"/><circle cx="29" cy="22" r="7"/><path d="M18 21.5c1.3-1.3 2.7-1.3 4 0M4 20l2-7M36 20l-2-7"/><path d="M8.5 19.5l5 5M26.5 19.5l5 5" stroke="#E5741A"/></svg>';
   function avisoLentes(sol) {
     var titulo = sol ? 'Vem com lentes de sol, sem grau.' : 'Vendemos só a armação: ela vem sem lentes de grau.';
     var texto = sol
@@ -1029,7 +1041,7 @@
         }).join('') + '</div>' +
         '<button class="galeria-seta anterior" type="button" data-action="galeria" data-dir="-1" aria-label="Foto anterior">‹</button>' +
         '<button class="galeria-seta proxima" type="button" data-action="galeria" data-dir="1" aria-label="Próxima foto">›</button>' +
-        '<button class="galeria-lupa" type="button" data-action="lupa" aria-label="Ampliar foto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21M8 10.5h5M10.5 8v5"/></svg><span>Zoom</span></button>' +
+        '<button class="galeria-lupa" type="button" data-action="lupa" aria-label="Ampliar foto"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21M8 10.5h5M10.5 8v5"/></svg><span>Zoom</span></button>' +
       '</div>' +
       '<div class="galeria-thumbs" role="tablist">' + fotos.map(function (f, i) {
         return '<button type="button" class="' + (i === 0 ? 'ativo' : '') + '" data-action="foto" data-i="' + i + '" role="tab" aria-label="' + h(f.rotulo) + '"><img src="' + h(f.src) + '" alt="" loading="lazy"' + (f.opcional ? ' data-opcional="1"' : '') + '><span>' + h(f.rotulo) + '</span></button>';
@@ -1261,6 +1273,11 @@
     if (novo.length) { estado.carrinho = novo; salvarCarrinho(); }
     history.replaceState({}, '', '/carrinho');
   }
+  function barraFecharTexto(resumo) {
+    var r = resumo && resumo.resumo;
+    if (!r) return 'Fechar pedido →';
+    return 'Fechar pedido · ' + h(fmt(r.total));
+  }
   function viewCarrinho() {
     carrinhoDoLink();
     titulo('Carrinho');
@@ -1288,16 +1305,18 @@
           (resumo && resumo.endereco ? '<p class="endereco-resolvido">' + h([resumo.endereco.logradouro, resumo.endereco.bairro, resumo.endereco.cidade ? resumo.endereco.cidade + '/' + resumo.endereco.uf : ''].filter(Boolean).join(', ')) + '</p>' : '') +
           (carregando ? '' : seletorFreteHtml(resumo ? resumo.resumo : null)) +
           (carregando ? '<p class="endereco-resolvido"><span class="spinner"></span> Calculando…</p>' : resumoHtml(resumo ? Object.assign({}, resumo.resumo, { endereco: undefined }) : null) + cupomHtml(resumo) + nota1aHtml(resumo ? { resumo: resumo.resumo } : null, false)) +
-          avisoLentes(false) +
-          '<a class="btn btn-laranja btn-bloco" href="/checkout" data-link' + (erro ? ' aria-disabled="true" style="pointer-events:none;opacity:.55"' : '') + '>Fechar pedido →</a>' +
+          '<a class="btn btn-laranja btn-bloco" href="/checkout" data-link data-fechar-pedido' + (erro ? ' aria-disabled="true" style="pointer-events:none;opacity:.55"' : '') + '>Fechar pedido →</a>' +
           '<p class="endereco-resolvido">Pix aprovado na hora · cartão em até 6x · nota fiscal · troca grátis em até 7 dias úteis</p>' +
-        '</div></div></div>';
+          '<p class="aviso-lentes-curto">Só a armação, sem lentes de grau · coloque as lentes na sua ótica · <a href="/como-comprar" data-link>Como funciona</a></p>' +
+        '</div></div></div>' +
+        // Celular: o botão fica sempre à vista (no carrinho ele ficava abaixo do resumo e ninguém chegava nele).
+        (erro ? '' : '<div class="barra-comprar"><div class="container"><a class="btn btn-laranja btn-bloco" href="/checkout" data-link data-fechar-pedido>' + barraFecharTexto(resumo) + '</a></div></div>');
     }
     render(null, '', true);
     var g = geracao;
     cotar(estado.cep).then(function (d) {
       if (g !== geracao) return;
-      render({ itens: d.resumo.itens, unidades: d.resumo.unidades, resumo: d.resumo, endereco: d.endereco, cupom: d.cupom }, '', false);
+      render({ itens: d.resumo.itens, unidades: d.resumo.unidades, resumo: d.resumo, endereco: d.endereco, cupom: d.cupom, previa_cupom: d.previa_cupom }, '', false);
       track('view_cart', { value: d.resumo.total, items: d.resumo.itens.map(function (i) { return { item_id: i.sku, item_name: i.nome, price: i.preco, quantity: i.qty }; }) });
     }).catch(function (e) { if (g === geracao) render(null, e.message, false); });
   }
@@ -2405,6 +2424,19 @@
   // ---------------------------------------------------------------------------
   // Eventos
   // ---------------------------------------------------------------------------
+  // Clarity: toque em "Fechar pedido" (botão do resumo ou barra fixa do carrinho).
+  document.addEventListener('click', function (e) {
+    if (window.clarity && e.target.closest && e.target.closest('[data-fechar-pedido]')) window.clarity('event', 'fechar_pedido');
+  }, true);
+  // Confirma pra equipe que o ?interno=1 (boot.js) pegou neste aparelho.
+  (function () {
+    try {
+      var av = sessionStorage.getItem('sa_interno_aviso');
+      if (!av) return;
+      sessionStorage.removeItem('sa_interno_aviso');
+      setTimeout(function () { toast(av === 'ligado' ? 'Modo interno ligado: este aparelho não entra nas métricas (GA4, Meta e Clarity).' : 'Modo interno desligado: este aparelho volta a contar nas métricas.', 6000); }, 800);
+    } catch (e) {}
+  })();
   document.addEventListener('click', function (e) {
     // Aviso de 1ª compra: fecha no X, no botão ou clicando fora da caixa
     if (e.target.id === 'popup-1a' || e.target.closest('[data-action="fechar-1a"]')) { fecharPopup1a(); return; }
@@ -2447,7 +2479,7 @@
     }
     else if (acao === 'aplicar-cupom' || acao === 'remover-cupom') {
       var campoCupom = document.getElementById('cupom');
-      var cod = acao === 'aplicar-cupom' ? String(campoCupom ? campoCupom.value : '').trim().toUpperCase().replace(/\s+/g, '') : '';
+      var cod = acao === 'aplicar-cupom' ? String(el.dataset.cupom || (campoCupom ? campoCupom.value : '')).trim().toUpperCase().replace(/\s+/g, '') : '';
       if (acao === 'aplicar-cupom' && !cod) { if (campoCupom) campoCupom.focus(); return; }
       estado.cupom = cod;
       gravar('sa_cupom', cod);
@@ -2573,7 +2605,7 @@
   // link do wa.me com o protocolo ("Protocolo 1234-ABCD") já escrito na mensagem.
   // ---------------------------------------------------------------------------
   var WA_ULTIMO = 'sa_wa_atendimento', WA_DADOS = 'sa_wa_dados', WA_VALIDADE = 24 * 3600e3;
-  var ICONE_WA = '<svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path fill="currentColor" d="M16 3C8.8 3 3 8.7 3 15.8c0 2.5.7 4.9 2 7L3 29l6.4-2c2 1.1 4.3 1.7 6.6 1.7 7.2 0 13-5.7 13-12.8S23.2 3 16 3zm0 23.4c-2.1 0-4.1-.6-5.9-1.7l-.4-.3-3.8 1.2 1.2-3.7-.3-.4c-1.2-1.8-1.8-3.8-1.8-5.9C5 9.9 9.9 5.2 16 5.2s11 4.7 11 10.6-4.9 10.6-11 10.6zm6-7.9c-.3-.2-2-1-2.3-1.1-.3-.1-.5-.2-.8.2-.2.3-.9 1.1-1.1 1.3-.2.2-.4.3-.7.1-.3-.2-1.4-.5-2.7-1.7-1-.9-1.7-2-1.9-2.3-.2-.3 0-.5.2-.7l.5-.6c.2-.2.2-.4.3-.6.1-.2 0-.5 0-.6-.1-.2-.8-1.8-1-2.5-.3-.7-.5-.6-.8-.6h-.6c-.2 0-.6.1-.9.4-.3.3-1.2 1.1-1.2 2.8s1.2 3.2 1.4 3.5c.2.2 2.4 3.6 5.8 5 .8.3 1.4.5 1.9.7.8.3 1.5.2 2.1.1.6-.1 2-.8 2.2-1.6.3-.8.3-1.4.2-1.6-.1-.1-.3-.2-.6-.4z"/></svg>';
+  var ICONE_WA = '<svg width="20" height="20" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path fill="currentColor" d="M16 3C8.8 3 3 8.7 3 15.8c0 2.5.7 4.9 2 7L3 29l6.4-2c2 1.1 4.3 1.7 6.6 1.7 7.2 0 13-5.7 13-12.8S23.2 3 16 3zm0 23.4c-2.1 0-4.1-.6-5.9-1.7l-.4-.3-3.8 1.2 1.2-3.7-.3-.4c-1.2-1.8-1.8-3.8-1.8-5.9C5 9.9 9.9 5.2 16 5.2s11 4.7 11 10.6-4.9 10.6-11 10.6zm6-7.9c-.3-.2-2-1-2.3-1.1-.3-.1-.5-.2-.8.2-.2.3-.9 1.1-1.1 1.3-.2.2-.4.3-.7.1-.3-.2-1.4-.5-2.7-1.7-1-.9-1.7-2-1.9-2.3-.2-.3 0-.5.2-.7l.5-.6c.2-.2.2-.4.3-.6.1-.2 0-.5 0-.6-.1-.2-.8-1.8-1-2.5-.3-.7-.5-.6-.8-.6h-.6c-.2 0-.6.1-.9.4-.3.3-1.2 1.1-1.2 2.8s1.2 3.2 1.4 3.5c.2.2 2.4 3.6 5.8 5 .8.3 1.4.5 1.9.7.8.3 1.5.2 2.1.1.6-.1 2-.8 2.2-1.6.3-.8.3-1.4.2-1.6-.1-.1-.3-.2-.6-.4z"/></svg>';
 
   function waUltimo() {
     var u = ler(WA_ULTIMO, null);
@@ -2582,7 +2614,7 @@
   function waPainelHtml() {
     var u = waUltimo();
     var topo = '<div class="wa-topo"><span class="wa-avatar" aria-hidden="true">' +
-        '<svg viewBox="0 0 68 36" fill="none" stroke="currentColor" stroke-width="4"><circle cx="16" cy="20" r="12"/><circle cx="52" cy="20" r="12"/><path d="M28 18q6-5 12 0"/></svg></span>' +
+        '<svg width="28" height="15" viewBox="0 0 68 36" fill="none" stroke="currentColor" stroke-width="4"><circle cx="16" cy="20" r="12"/><circle cx="52" cy="20" r="12"/><path d="M28 18q6-5 12 0"/></svg></span>' +
         '<span class="wa-quem"><strong id="wa-titulo">Só Armação</strong><span class="wa-online">Online agora</span></span>' +
         '<button type="button" class="wa-fechar" data-wa="fechar" aria-label="Fechar">×</button></div>';
     if (u) {

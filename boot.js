@@ -42,6 +42,28 @@
     } catch (e) {}
   })();
 
+  // Aparelho interno (equipe/testes): abra uma vez soarmacao.com.br/?interno=1 e este
+  // navegador para de mandar dados pro GA4, Google Ads, Meta e Clarity (?interno=0 desfaz).
+  // Sem isso, os testes da equipe enchem o funil: 37 de 47 carrinhos no Clarity eram internos.
+  var interno = false;
+  try {
+    var qi = new URLSearchParams(location.search);
+    if (qi.has('interno')) {
+      if (qi.get('interno') === '0') localStorage.removeItem('sa_interno'); else localStorage.setItem('sa_interno', '1');
+      sessionStorage.setItem('sa_interno_aviso', qi.get('interno') === '0' ? 'desligado' : 'ligado');
+      qi.delete('interno');
+      var restoQ = qi.toString();
+      history.replaceState(history.state, '', location.pathname + (restoQ ? '?' + restoQ : '') + location.hash);
+    }
+    interno = localStorage.getItem('sa_interno') === '1';
+  } catch (e) {}
+  window.__saInterno = interno;
+  if (interno) {
+    // Desligamento oficial do gtag.js: nada sai pro GA4 nem pro Google Ads.
+    window['ga-disable-G-TMYDVM5TM1'] = true;
+    window['ga-disable-AW-18408434452'] = true;
+  }
+
   // GA4 + Google Ads (o gtag.js é carregado pelo <script async> do app.html)
   window.dataLayer = window.dataLayer || [];
   window.gtag = function () { window.dataLayer.push(arguments); };
@@ -59,6 +81,8 @@
   window.gtag('config', 'G-TMYDVM5TM1', { send_page_view: false });
   // Google Ads (remarketing e base pras conversões); usa o mesmo gtag.js do GA4
   window.gtag('config', 'AW-18408434452');
+
+  if (interno) return; // interno: sem Meta Pixel e sem Clarity
 
   // Meta Pixel
   !function (f, b, e, v, n, t, s) {

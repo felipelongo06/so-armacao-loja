@@ -280,8 +280,38 @@ input, select, textarea { font: inherit; color: inherit; }
 /* ---------- Página de produto ---------- */
 .migalhas { font-size: 13px; color: var(--texto-suave); margin: 14px 0; display: flex; gap: 6px; flex-wrap: wrap; }
 .migalhas a { color: var(--verde); }
-.produto { display: grid; gap: 22px; padding-bottom: 40px; }
-@media (min-width: 820px) { .produto { grid-template-columns: 1.1fr .9fr; gap: 40px; align-items: start; } }
+.produto { display: grid; gap: 14px; padding-bottom: 40px; }
+.produto-topo { display: grid; gap: 10px; }
+.produto-topo h1 { font-size: clamp(30px, 6vw, 44px); line-height: 1; }
+/* Computador: fotos à esquerda (2 linhas), nome/preço e o resto à direita. */
+@media (min-width: 820px) {
+  .produto { grid-template-columns: 1.1fr .9fr; grid-template-rows: auto 1fr; column-gap: 40px; row-gap: 14px; align-items: start; }
+  .produto > .galeria { grid-column: 1; grid-row: 1 / span 2; }
+  .produto-topo { grid-column: 2; grid-row: 1; }
+  .produto > .produto-info { grid-column: 2; grid-row: 2; }
+}
+/* Celular: nome, preço, foto, cores e frete na 1ª tela (Clarity: 87% dos toques
+   eram na galeria e o preço ficava abaixo da dobra). */
+@media (max-width: 819px) {
+  body[data-tela="produto"] .migalhas { display: none; }
+  .produto { padding-top: 12px; }
+  .produto-topo { gap: 6px; }
+  .produto-topo h1 { font-size: 26px; }
+  .produto-topo .preco-bloco .segunda { font-size: 13px; }
+  .produto-topo .card-linha { font-size: 11px; }
+  .produto-topo .preco-bloco .valor { font-size: 34px; }
+  .produto-topo .preco-bloco .parcelas { display: none; }
+  .produto .galeria  { gap: 8px; }
+  .produto .galeria-principal  { aspect-ratio: 16 / 10; max-height: 34vh; max-height: 34svh; margin: 0 auto; width: 100%; }
+  .produto .galeria-slide  { padding: 8px; }
+  .produto .galeria-thumbs  { gap: 6px; }
+  .produto .galeria-thumbs button  { width: 58px; padding: 3px 3px 1px; }
+  .produto .galeria-thumbs img  { width: 48px; height: 40px; }
+  .produto .galeria-thumbs span  { font-size: 10px; }
+  .produto-info { gap: 12px; }
+  .produto .cor-opcao  { padding: 4px 8px 4px 4px; font-size: 12px; }
+  .produto .cor-opcao img  { width: 34px; height: 24px; }
+}
 .galeria { display: grid; gap: 10px; }
 .galeria-principal { background: var(--branco); border: 1px solid var(--creme-2); border-radius: var(--raio); aspect-ratio: 1 / 1; position: relative; overflow: hidden; }
 .galeria-principal .badge { z-index: 2; }
@@ -330,7 +360,6 @@ body.lupa-aberta { overflow: hidden; }
 .galeria-thumbs span { font-size: 11px; font-weight: 700; color: var(--texto-suave); text-transform: uppercase; letter-spacing: .02em; }
 .galeria-thumbs button.ativo span { color: var(--verde-escuro); }
 .produto-info { display: grid; gap: 14px; }
-.produto-info h1 { font-size: clamp(30px, 6vw, 44px); line-height: 1; }
 .preco-bloco { display: grid; gap: 2px; }
 .preco-bloco .valor { font-family: var(--display); font-size: 44px; color: var(--laranja); letter-spacing: .5px; line-height: 1; }
 .preco-bloco .valor small { font-family: var(--texto-font); font-size: 14px; color: var(--verde-escuro); font-weight: 700; letter-spacing: 0; margin-left: 6px; }
@@ -803,3 +832,22 @@ body[data-tela="pagamento"] .wa-botao, body[data-tela="pagamento"] .wa-painel { 
 .guias-lista li { margin-bottom: 12px; }
 .institucional ol { padding-left: 22px; }
 .categoria p { margin: 0 0 12px; }
+
+/* ---------- Produto: selo de lentes e frete ---------- */
+.selo-lentes { display: flex; gap: 8px; align-items: flex-start; margin: 0; padding: 8px 10px; border-left: 4px solid var(--laranja); background: #FFF4E8; border-radius: 0 var(--raio) var(--raio) 0; font-size: 13px; line-height: 1.4; }
+.selo-lentes svg { flex: none; margin-top: 1px; }
+.selo-lentes a { font-weight: 700; color: var(--verde); white-space: nowrap; }
+.frete-produto { display: grid; gap: 6px; }
+.cep-produto { display: grid; gap: 6px; }
+.cep-produto label { font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; }
+.cep-produto-linha { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.cep-produto input { min-width: 0; height: 44px; padding: 0 12px; border: 2px solid var(--creme-2); border-radius: var(--raio); font: inherit; font-size: 16px; background: var(--branco); }
+.cep-produto input:focus { outline: none; border-color: var(--verde-escuro); }
+.cep-produto .btn { height: 44px; padding: 0 16px; }
+.frete-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 14px; }
+.frete-lista li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 10px; background: var(--branco); border: 1px solid var(--creme-2); border-radius: var(--raio); }
+.frete-lista-preco { font-weight: 700; white-space: nowrap; }
+.frete-nota { margin: 0; font-size: 12px; color: var(--texto-suave); }
+.frete-nota.erro { color: #B3261E; }
+/* 1ª pintura (SSR) no celular com a mesma altura de foto da tela final: menos pulo. */
+@media (max-width: 819px) { #app[data-ssr] .ssr-foto img { aspect-ratio: 16 / 10; max-height: 34svh; object-fit: contain; } }

@@ -28,7 +28,9 @@ const C = globalThis.SA_CONTEUDO;
 // Troca e envio em dados estruturados: as mesmas regras das páginas Trocas e
 // devoluções e Entrega (7 dias de arrependimento, devolução grátis, reembolso
 // integral; até 3 dias úteis na Grande SP e até 5 no resto do Brasil).
-// O valor do frete depende do CEP (Melhor Envio), por isso não vai aqui.
+// Frete: um OfferShippingDetails por região, com o valor da tabela fixa do
+// checkout (regras.frete_regioes do /api/catalogo — fonte única, nada digitado
+// aqui). O Melhor Envio cobra igual ou menos; Entrega Full e frete grátis ficam de fora.
 const POLITICA_TROCA = {
   '@type': 'MerchantReturnPolicy',
   applicableCountry: 'BR',
@@ -40,14 +42,22 @@ const POLITICA_TROCA = {
   refundType: 'https://schema.org/FullRefund',
   merchantReturnLink: `${SITE}/trocas-e-devolucoes`,
 };
-const ENVIO = {
-  '@type': 'OfferShippingDetails',
-  shippingDestination: { '@type': 'DefinedRegion', addressCountry: 'BR' },
-  deliveryTime: {
-    '@type': 'ShippingDeliveryTime',
-    handlingTime: { '@type': 'QuantitativeValue', minValue: 0, maxValue: 1, unitCode: 'DAY' },
-    transitTime: { '@type': 'QuantitativeValue', minValue: 1, maxValue: 4, unitCode: 'DAY' },
-  },
+const PRAZO_ENVIO = {
+  '@type': 'ShippingDeliveryTime',
+  handlingTime: { '@type': 'QuantitativeValue', minValue: 0, maxValue: 1, unitCode: 'DAY' },
+  // Até 5 dias úteis no total (preparo + transporte); a Grande SP chega antes (até 3),
+  // mas o estado de SP inteiro está numa região só, então vale o teto de 5.
+  transitTime: { '@type': 'QuantitativeValue', minValue: 1, maxValue: 4, unitCode: 'DAY' },
+};
+const envio = (cat) => {
+  const regioes = (cat?.regras?.frete_regioes || []).filter((z) => z?.ufs?.length && Number(z.centavos) > 0);
+  if (!regioes.length) return { '@type': 'OfferShippingDetails', shippingDestination: { '@type': 'DefinedRegion', addressCountry: 'BR' }, deliveryTime: PRAZO_ENVIO };
+  return regioes.map((z) => ({
+    '@type': 'OfferShippingDetails',
+    shippingDestination: { '@type': 'DefinedRegion', addressCountry: 'BR', addressRegion: z.ufs },
+    shippingRate: { '@type': 'MonetaryAmount', value: Number((z.centavos / 100).toFixed(2)), currency: 'BRL' },
+    deliveryTime: PRAZO_ENVIO,
+  }));
 };
 const ldLista = (produtos) => ({
   '@context': 'https://schema.org', '@type': 'ItemList', numberOfItems: produtos.length,
@@ -215,6 +225,7 @@ function paginaProduto(cat, codigo, cor) {
     (relacionados.length ? '<section class="secao"><h2 class="display">Combina com</h2>' + listaModelos(relacionados) + '</section>' : '') +
     '</div>';
 
+  const ENVIO = envio(cat);
   const propriedades = linhasMedidas.filter(([k]) => /lente|ponte|haste|frontal/i.test(k))
     .map(([k, val]) => ({ '@type': 'PropertyValue', name: k, value: parseFloat(val), unitCode: 'MMT' }));
   const variante = (x) => ({

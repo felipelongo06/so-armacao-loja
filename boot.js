@@ -45,7 +45,9 @@
   // Aparelho interno (equipe/testes): abra uma vez soarmacao.com.br/?interno=1 e este
   // navegador para de mandar dados pro GA4, Google Ads, Meta e Clarity (?interno=0 desfaz).
   // Sem isso, os testes da equipe enchem o funil: 37 de 47 carrinhos no Clarity eram internos.
-  var interno = false;
+  // localhost/127.0.0.1 (ambiente de teste) conta sempre como interno: não manda nada
+  // pro GA4, Google Ads, Meta nem Clarity (antes o Clarity gravava o localhost:8765).
+  var interno = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
   try {
     var qi = new URLSearchParams(location.search);
     if (qi.has('interno')) {
@@ -55,7 +57,7 @@
       var restoQ = qi.toString();
       history.replaceState(history.state, '', location.pathname + (restoQ ? '?' + restoQ : '') + location.hash);
     }
-    interno = localStorage.getItem('sa_interno') === '1';
+    interno = interno || localStorage.getItem('sa_interno') === '1';
   } catch (e) {}
   window.__saInterno = interno;
   if (interno) {

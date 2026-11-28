@@ -1354,6 +1354,9 @@
       var foco = ativo && ativo.id && app.contains(ativo) ? { id: ativo.id, pos: ativo.selectionStart } : null;
       app.innerHTML = '<div class="container"><div class="secao-titulo" style="margin-top:20px"><h1 class="display" style="font-size:clamp(30px,6vw,48px)">Finalizar pedido</h1><a class="link" href="/carrinho" data-link>Voltar ao carrinho</a></div>' +
         '<form class="checkout" data-action="checkout" novalidate>' +
+          // Campo-armadilha: invisível pra pessoa (fora da tela, sem foco, sem autopreencher);
+          // só robô que preenche tudo o completa. O backend recusa o pedido se vier preenchido.
+          '<div class="armadilha" aria-hidden="true" style="position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden"><label for="sa_hp">Não preencha</label><input id="sa_hp" name="sa_hp" type="text" tabindex="-1" autocomplete="off" value=""></div>' +
           '<div class="painel form-grid">' +
             '<h2 class="display">Seus dados</h2>' +
             (logado ? '<p class="checkout-conta">Comprando como <strong>' + h((sessaoLocal().user || {}).email || '') + '</strong> · <a href="/conta" data-link>Minha conta</a></p>'
@@ -1455,6 +1458,7 @@
     estado.aoSairDoCampo = function (el) { if (g === geracao && CAMPOS_PERFIL.indexOf(el.name) >= 0) salvarPerfilConta(); };
     app.onchange = function (e) {
       var el = e.target;
+      if (el.name === 'sa_hp') estado.armadilha = el.value;
       if (el.name === 'metodo') { f.metodo = el.value; estado.formTocado = true; gravar('sa_checkout', f, sessionStorage); render(ultimaCotacao, '', false); }
       if (el.name === 'salvar_cartao') { f.salvar_cartao = el.checked; gravar('sa_checkout', f, sessionStorage); }
       if (el.name === 'parcelas') { f.parcelas = Number(el.value); gravar('sa_checkout', f, sessionStorage); }
@@ -1478,6 +1482,7 @@
         cliente: { nome: f.nome.trim(), cpf: f.cpf, email: f.email.trim(), telefone: f.telefone, cep: f.cep, numero: String(f.numero).trim(), complemento: f.complemento || '' },
         metodo: metodoEnvio, parcelas: metodoEnvio === 'CREDIT_CARD' ? (Number(f.parcelas) || 1) : 1,
         cartao_salvo: salvo ? salvo.id : undefined,
+        hp: (document.getElementById('sa_hp') || {}).value || estado.armadilha || undefined,
         salvar_cartao: logado && f.metodo === 'CREDIT_CARD' && f.salvar_cartao !== false,
         frete: estado.freteOpcao,
         cupom: estado.cupom || undefined,

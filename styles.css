@@ -41,6 +41,7 @@ input, select, textarea { font: inherit; color: inherit; }
 
 .container { width: 100%; max-width: var(--max); margin: 0 auto; padding: 0 var(--gutter); }
 .display { font-family: var(--display); font-weight: 400; text-transform: uppercase; letter-spacing: .5px; line-height: 1; }
+.armadilha { position: absolute !important; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
 .visually-hidden { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .skip { position: absolute; left: -999px; top: 8px; background: var(--laranja); color: var(--verde-escuro); padding: 8px 12px; z-index: 100; }
 .skip:focus { left: 8px; }
